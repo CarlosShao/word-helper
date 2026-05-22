@@ -1,47 +1,17 @@
 import { Pool } from 'pg';
-import dns from 'dns';
 
 let pool: Pool;
-let dbHostIPv4: string | null = null;
-
-// 强制 IPv4 DNS 解析
-async function resolveIPv4(host: string): Promise<string> {
-  if (dbHostIPv4) {
-    console.log(`[DB] Using configured IPv4: ${dbHostIPv4}`);
-    return dbHostIPv4;
-  }
-  return new Promise((resolve, reject) => {
-    dns.resolve4(host, (err, addresses) => {
-      if (err) {
-        console.error(`[DB] Failed to resolve IPv4 for ${host}:`, err);
-        reject(err);
-        return;
-      }
-      dbHostIPv4 = addresses[0];
-      console.log(`[DB] Resolved IPv4 for ${host}: ${dbHostIPv4}`);
-      resolve(dbHostIPv4);
-    });
-  });
-}
 
 export async function initDb(): Promise<void> {
   // 使用环境变量或者默认的 Supabase 连接字符串
   const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:!henji2168Carlos@db.gqtsxcypwgtczlugkqsb.supabase.co:5432/postgres';
   
-  // 解析连接字符串，强制 IPv4
-  const url = new URL(databaseUrl);
-  const host = url.hostname;
-  
   try {
-    const ipv4Host = await resolveIPv4(host);
-    url.hostname = ipv4Host;
-    const connectionString = url.toString();
-    
     pool = new Pool({
-      connectionString,
+      connectionString: databaseUrl,
       max: 20,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: 10000,
     });
     
     // 测试连接

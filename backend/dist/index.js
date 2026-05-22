@@ -243,12 +243,12 @@ async function startServer() {
             const searchTerm = `%${search}%`;
             words = await (0, db_1.all)('SELECT * FROM words WHERE english LIKE $1 OR chinese LIKE $2 ORDER BY english LIMIT $3 OFFSET $4', [searchTerm, searchTerm, pageSize, offset]);
             const totalResult = await (0, db_1.get)('SELECT COUNT(*) as total FROM words WHERE english LIKE $1 OR chinese LIKE $2', [searchTerm, searchTerm]);
-            total = totalResult?.total || 0;
+            total = parseInt(totalResult?.total) || 0;
         }
         else {
             words = await (0, db_1.all)('SELECT * FROM words ORDER BY english LIMIT $1 OFFSET $2', [pageSize, offset]);
             const totalResult = await (0, db_1.get)('SELECT COUNT(*) as total FROM words');
-            total = totalResult?.total || 0;
+            total = parseInt(totalResult?.total) || 0;
         }
         // 获取关系数据并构建树形结构
         const wordIds = words.map(w => w.id);

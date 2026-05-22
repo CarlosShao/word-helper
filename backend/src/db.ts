@@ -24,6 +24,9 @@ async function resolveIPv4(host: string): Promise<string> {
   return host;
 }
 
+// 强制使用 IPv4
+dns.setDefaultResultOrder('ipv4first');
+
 export async function initDb(): Promise<void> {
   // 使用环境变量或者默认的 Supabase 连接字符串
   const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:!henji2168Carlos@db.gqtsxcypwgtczlugkqsb.supabase.co:5432/postgres';
@@ -32,15 +35,19 @@ export async function initDb(): Promise<void> {
   const host = url.hostname;
   
   const resolvedHost = await resolveIPv4(host);
-  url.hostname = resolvedHost;
-  const connectionString = url.toString();
+  console.log(`[DB] Using IPv4 address: ${resolvedHost}`);
   
   pool = new Pool({
-    connectionString,
+    host: resolvedHost,
+    port: parseInt(url.port) || 5432,
+    database: url.pathname.slice(1),
+    user: url.username,
+    password: url.password,
     max: 20,
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
-  });
+    family: 4,
+  } as any);
   
   console.log(`[DB] Connecting to PostgreSQL: ${url.username}@${resolvedHost}:${url.port}${url.pathname}`);
   

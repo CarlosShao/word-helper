@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import dns from 'dns/promises';
+import dns from 'dns';
 
 let pool: Pool;
 let dbHostIPv4: string | null = process.env.DB_HOST_IPV4 || null;
@@ -12,20 +12,19 @@ async function resolveIPv4(host: string): Promise<string> {
   if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
     return host;
   }
-  try {
-    const records = await dns.resolve4(host);
-    if (records.length > 0) {
-      console.log(`[DB] Resolved IPv4 for ${host}: ${records[0]}`);
-      return records[0];
-    }
-  } catch (error) {
-    console.warn(`[DB] Failed to resolve IPv4 for ${host}, using original: ${error}`);
-  }
-  return host;
+  
+  return new Promise((resolve) => {
+    dns.lookup(host, { family: 4 }, (err, address) => {
+      if (err || !address) {
+        console.warn(`[DB] Failed to resolve IPv4 for ${host}, using original hostname`);
+        resolve(host);
+      } else {
+        console.log(`[DB] Resolved IPv4 for ${host}: ${address}`);
+        resolve(address);
+      }
+    });
+  });
 }
-
-// 强制使用 IPv4
-dns.setDefaultResultOrder('ipv4first');
 
 export async function initDb(): Promise<void> {
   // 使用环境变量或者默认的 Supabase 连接字符串

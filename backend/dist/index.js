@@ -125,47 +125,56 @@ async function startServer() {
             setTimeout(async () => {
                 try {
                     console.log('[Classification] Starting auto-classification...');
-                    const allWords = await (0, db_1.all)('SELECT * FROM words');
-                    const rules = await (0, db_1.all)('SELECT * FROM classification_rules WHERE active = 1 ORDER BY priority DESC');
-                    console.log(`[Classification] Classifying ${allWords.length} words with ${rules.length} rules...`);
-                    const wordIndex = new Map();
-                    allWords.forEach(w => {
-                        wordIndex.set(w.english.toLowerCase(), w.id);
-                    });
-                    const relationsToInsert = [];
-                    const processedIds = [];
-                    for (const word of allWords) {
-                        const english = word.english.toLowerCase().trim();
-                        let wasClassified = false;
-                        if (english.includes(' ')) {
-                            const coreWord = extractCoreWord(english, wordIndex);
-                            if (coreWord && coreWord !== word.id) {
-                                // 检查是否已存在
-                                const existing = await (0, db_1.get)('SELECT id FROM word_relations WHERE root_word_id = $1 AND child_word_id = $2 AND relation_type = $3', [coreWord, word.id, 'phrase']);
-                                if (!existing) {
-                                    relationsToInsert.push({ root: coreWord, child: word.id, type: 'phrase' });
-                                    wasClassified = true;
+                    await (0, db_1.withClient)(async (client) => {
+                        const allWords = await client.query('SELECT * FROM words');
+                        const rules = await client.query('SELECT * FROM classification_rules WHERE active = 1 ORDER BY priority DESC');
+                        const existingRelations = await client.query('SELECT * FROM word_relations');
+                        const words = allWords.rows;
+                        const ruleList = rules.rows;
+                        const existing = existingRelations.rows;
+                        console.log(`[Classification] Classifying ${words.length} words with ${ruleList.length} rules...`);
+                        const wordIndex = new Map();
+                        words.forEach((w) => {
+                            wordIndex.set(w.english.toLowerCase(), w.id);
+                        });
+                        // 构建现有关系的索引，避免重复
+                        const existingIndex = new Set();
+                        existing.forEach((r) => {
+                            existingIndex.add(`${r.root_word_id}-${r.child_word_id}-${r.relation_type}`);
+                        });
+                        const relationsToInsert = [];
+                        const processedIds = [];
+                        for (const word of words) {
+                            const english = word.english.toLowerCase().trim();
+                            let wasClassified = false;
+                            if (english.includes(' ')) {
+                                const coreWord = extractCoreWord(english, wordIndex);
+                                if (coreWord && coreWord !== word.id) {
+                                    // 检查是否已存在
+                                    const key = `${coreWord}-${word.id}-phrase`;
+                                    if (!existingIndex.has(key)) {
+                                        relationsToInsert.push({ root: coreWord, child: word.id, type: 'phrase' });
+                                        wasClassified = true;
+                                    }
                                 }
                             }
-                        }
-                        else {
-                            const rootWord = findRootWord(english, wordIndex, rules);
-                            if (rootWord && rootWord !== word.id) {
-                                const existing = await (0, db_1.get)('SELECT id FROM word_relations WHERE root_word_id = $1 AND child_word_id = $2 AND relation_type = $3', [rootWord, word.id, 'derivative']);
-                                if (!existing) {
-                                    relationsToInsert.push({ root: rootWord, child: word.id, type: 'derivative' });
-                                    wasClassified = true;
+                            else {
+                                const rootWord = findRootWord(english, wordIndex, ruleList);
+                                if (rootWord && rootWord !== word.id) {
+                                    const key = `${rootWord}-${word.id}-derivative`;
+                                    if (!existingIndex.has(key)) {
+                                        relationsToInsert.push({ root: rootWord, child: word.id, type: 'derivative' });
+                                        wasClassified = true;
+                                    }
                                 }
                             }
+                            if (wasClassified) {
+                                processedIds.push(word.id);
+                            }
                         }
-                        if (wasClassified) {
-                            processedIds.push(word.id);
-                        }
-                    }
-                    // 批量插入关系
-                    if (relationsToInsert.length > 0) {
-                        console.log(`[Classification] Inserting ${relationsToInsert.length} relations...`);
-                        await (0, db_1.withClient)(async (client) => {
+                        // 批量插入关系
+                        if (relationsToInsert.length > 0) {
+                            console.log(`[Classification] Inserting ${relationsToInsert.length} relations...`);
                             await client.query('BEGIN');
                             try {
                                 const batchSize = 100;
@@ -186,8 +195,11 @@ async function startServer() {
                                 await client.query('ROLLBACK');
                                 throw error;
                             }
-                        });
-                    }
+                        }
+                        else {
+                            console.log('[Classification] No relations to insert');
+                        }
+                    });
                     console.log('[Classification] Auto-classification finished');
                 }
                 catch (e) {

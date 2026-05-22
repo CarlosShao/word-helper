@@ -7,7 +7,7 @@ import multer from 'multer';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
-import { initDb, run, all, get, batchRun, saveDb } from './db';
+import { createPool, initDb, run, all, get, batchRun, saveDb } from './db';
 import { parsePdf } from './pdfParser';
 
 const app = express();
@@ -17,6 +17,7 @@ app.use(cors());
 app.use(express.json());
 
 async function startServer() {
+  await createPool();
   await initDb();
 
   const staticDir = path.join(__dirname, '../public');

@@ -1,6 +1,7 @@
 import { Pool, QueryResult, QueryResultRow } from 'pg';
 import fs from 'fs';
 import path from 'path';
+import dns from 'dns/promises';
 
 const dbHost = process.env.DB_HOST || 'localhost';
 const dbPort = parseInt(process.env.DB_PORT || '5432');
@@ -8,19 +9,39 @@ const dbName = process.env.DB_NAME || 'wordhelper';
 const dbUser = process.env.DB_USER || 'postgres';
 const dbPassword = process.env.DB_PASSWORD || '';
 
-const pool = new Pool({
-  host: dbHost,
-  port: dbPort,
-  database: dbName,
-  user: dbUser,
-  password: dbPassword,
-  connectionTimeoutMillis: 10000,
-  idleTimeoutMillis: 30000,
-  keepAlive: true,
-  keepAliveInitialDelayMillis: 10000,
-});
+let pool: Pool;
 
-console.log(`[DB] Connecting to PostgreSQL: ${dbUser}@${dbHost}:${dbPort}/${dbName}`);
+async function resolveIPv4(host: string): Promise<string> {
+  if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+    return host;
+  }
+  try {
+    const records = await dns.resolve4(host);
+    if (records.length > 0) {
+      console.log(`[DB] Resolved IPv4 for ${host}: ${records[0]}`);
+      return records[0];
+    }
+  } catch (error) {
+    console.warn(`[DB] Failed to resolve IPv4 for ${host}, using original: ${error}`);
+  }
+  return host;
+}
+
+export async function createPool(): Promise<void> {
+  const resolvedHost = await resolveIPv4(dbHost);
+  pool = new Pool({
+    host: resolvedHost,
+    port: dbPort,
+    database: dbName,
+    user: dbUser,
+    password: dbPassword,
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
+  });
+  console.log(`[DB] Connecting to PostgreSQL: ${dbUser}@${resolvedHost}:${dbPort}/${dbName}`);
+}
 
 export async function initDb(): Promise<void> {
   try {
@@ -38,26 +59,26 @@ export async function initDb(): Promise<void> {
 
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_words_english ON words(english)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_words_chinese ON words(chinese)`);
-    
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS error_words (
         id SERIAL PRIMARY KEY,
         word_id INTEGER NOT NULL,
         error_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (word_id) REFERENCES words(id)
+        FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
       )
     `);
-    
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS observation_words (
         id SERIAL PRIMARY KEY,
         word_id INTEGER NOT NULL,
         correct_count INTEGER DEFAULT 0,
         added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (word_id) REFERENCES words(id)
+        FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
       )
     `);
-    
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS import_files (
         id SERIAL PRIMARY KEY,
@@ -65,14 +86,14 @@ export async function initDb(): Promise<void> {
         imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT
       )
     `);
-    
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS practice_sessions (
         id SERIAL PRIMARY KEY,
@@ -89,8 +110,8 @@ export async function initDb(): Promise<void> {
         child_word_id INTEGER NOT NULL,
         relation_type TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (root_word_id) REFERENCES words(id),
-        FOREIGN KEY (child_word_id) REFERENCES words(id)
+        FOREIGN KEY (root_word_id) REFERENCES words(id) ON DELETE CASCADE,
+        FOREIGN KEY (child_word_id) REFERENCES words(id) ON DELETE CASCADE
       )
     `);
 
@@ -115,7 +136,7 @@ export async function initDb(): Promise<void> {
         english TEXT,
         reason TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (import_file_id) REFERENCES import_files(id)
+        FOREIGN KEY (import_file_id) REFERENCES import_files(id) ON DELETE CASCADE
       )
     `);
 
@@ -130,88 +151,84 @@ export async function initDb(): Promise<void> {
       )
     `);
 
-    const existingRules = await pool.query('SELECT COUNT(*) as count FROM classification_rules');
-    if (existingRules.rows[0]?.count === 0) {
-      const rules = [
-        { suffix: 'tion', description: '名词后缀', priority: 10 },
-        { suffix: 'ation', description: '名词后缀', priority: 10 },
-        { suffix: 'al', description: '形容词后缀', priority: 9 },
-        { suffix: 'ly', description: '副词后缀', priority: 8 },
-        { suffix: 'er', description: '名词后缀(人/物)', priority: 7 },
-        { suffix: 'or', description: '名词后缀(人/物)', priority: 7 },
-        { suffix: 'ing', description: '动名词/形容词', priority: 6 },
-        { suffix: 'ed', description: '过去式/分词', priority: 6 },
-        { suffix: 'ness', description: '名词后缀', priority: 5 },
-        { suffix: 'ment', description: '名词后缀', priority: 5 },
-        { suffix: 'able', description: '形容词后缀', priority: 4 },
-        { suffix: 'ible', description: '形容词后缀', priority: 4 },
-        { suffix: 'ful', description: '形容词后缀', priority: 3 },
-        { suffix: 'less', description: '形容词后缀', priority: 3 },
-        { suffix: 'ity', description: '名词后缀', priority: 2 },
-        { suffix: 'ize', description: '动词后缀', priority: 2 },
-        { suffix: 'ise', description: '动词后缀', priority: 2 },
-        { suffix: 'ous', description: '形容词后缀', priority: 1 },
-        { suffix: 'ive', description: '形容词后缀', priority: 1 },
-        { suffix: 'un', description: '否定前缀', priority: 0 },
-        { suffix: 're', description: '重复前缀', priority: 0 },
-        { suffix: 'pre', description: '前前缀', priority: 0 },
-        { suffix: 'dis', description: '否定前缀', priority: 0 },
-      ];
-      
-      for (const rule of rules) {
-        await pool.query(
-          'INSERT INTO classification_rules (suffix, description, priority, active) VALUES ($1, $2, $3, $4)',
-          [rule.suffix, rule.description, rule.priority, 1]
-        );
-      }
-    }
-    
-    console.log('[DB] PostgreSQL initialization complete');
+    await pool.query(`
+      INSERT INTO classification_rules (suffix, description, priority, active) VALUES
+        ('tion', '名词后缀', 10, 1),
+        ('ation', '名词后缀', 10, 1),
+        ('al', '形容词后缀', 9, 1),
+        ('ly', '副词后缀', 8, 1),
+        ('er', '名词后缀(人/物)', 7, 1),
+        ('or', '名词后缀(人/物)', 7, 1),
+        ('ing', '动名词/形容词', 6, 1),
+        ('ed', '过去式/分词', 6, 1),
+        ('ness', '名词后缀', 5, 1),
+        ('ment', '名词后缀', 5, 1),
+        ('able', '形容词后缀', 4, 1),
+        ('ible', '形容词后缀', 4, 1),
+        ('ful', '形容词后缀', 3, 1),
+        ('less', '形容词后缀', 3, 1),
+        ('ity', '名词后缀', 2, 1),
+        ('ize', '动词后缀', 2, 1),
+        ('ise', '动词后缀', 2, 1),
+        ('ous', '形容词后缀', 1, 1),
+        ('ive', '形容词后缀', 1, 1),
+        ('un', '否定前缀', 0, 1),
+        ('re', '重复前缀', 0, 1),
+        ('pre', '前前缀', 0, 1),
+        ('dis', '否定前缀', 0, 1)
+      ON CONFLICT DO NOTHING
+    `);
+
+    await pool.query(`
+      INSERT INTO parts_of_speech (code, name, description) VALUES
+        ('n.', '名词', '表示人、事、物、地点或抽象概念'),
+        ('v.', '动词', '表示动作、状态或发生的事情'),
+        ('adj.', '形容词', '描述或修饰名词'),
+        ('adv.', '副词', '修饰动词、形容词或其他副词'),
+        ('prep.', '介词', '表示时间、地点、方向等关系'),
+        ('conj.', '连词', '连接单词、短语或句子'),
+        ('pron.', '代词', '代替名词或名词短语'),
+        ('num.', '数词', '表示数量或顺序'),
+        ('art.', '冠词', '限定名词'),
+        ('interj.', '感叹词', '表达强烈情感'),
+        ('suff.', '后缀', '单词后缀'),
+        ('comb.', '组合形式', '用于构成复合词'),
+        ('abbr.', '缩写', '缩写形式'),
+        ('pl.', '复数', '复数形式'),
+        ('sing.', '单数', '单数形式')
+      ON CONFLICT DO NOTHING
+    `);
+
+    console.log('[DB] Database initialized successfully');
   } catch (error) {
     console.error('[DB] Initialization error:', error);
     throw error;
   }
 }
 
-export function saveDb(): void {
-  console.log('[DB] PostgreSQL auto-saves, no manual save needed');
+export async function run(query: string, params?: any[]): Promise<void> {
+  await pool.query(query, params);
 }
 
-export function getPool(): Pool {
-  return pool;
-}
-
-export async function run(sql: string, params: any[] = []): Promise<void> {
-  await pool.query(sql, params);
-}
-
-export async function batchRun(operations: Array<{ sql: string; params?: any[] }>): Promise<void> {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    for (const op of operations) {
-      await client.query(op.sql, op.params || []);
-    }
-    await client.query('COMMIT');
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
-}
-
-export async function all(sql: string, params: any[] = []): Promise<any[]> {
-  const result = await pool.query(sql, params);
+export async function all(query: string, params?: any[]): Promise<any[]> {
+  const result = await pool.query(query, params);
   return result.rows;
 }
 
-export async function get(sql: string, params: any[] = []): Promise<any | null> {
-  const result = await pool.query(sql, params);
-  return result.rows[0] || null;
+export async function get(query: string, params?: any[]): Promise<any | undefined> {
+  const result = await pool.query(query, params);
+  return result.rows[0];
 }
 
-export async function getLastInsertId(table: string = 'words'): Promise<number> {
-  const result = await pool.query(`SELECT lastval() as id`);
-  return result.rows[0]?.id || 0;
+export async function batchRun(queries: string[]): Promise<void> {
+  for (const query of queries) {
+    await pool.query(query);
+  }
+}
+
+export async function saveDb(): Promise<void> {
+}
+
+export async function closePool(): Promise<void> {
+  await pool.end();
 }

@@ -423,7 +423,6 @@ async function startServer() {
         SELECT COUNT(*) as word_index 
         FROM words 
         WHERE english < (SELECT english FROM words WHERE id = $1)
-        ORDER BY english
       `, [wordId]);
       
       const totalResult = await get('SELECT COUNT(*) as total FROM words');

@@ -18,8 +18,7 @@ const pool = new Pool({
   idleTimeoutMillis: 30000,
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000,
-  family: 4, // 强制使用 IPv4
-} as any); // 使用 any 类型绕过类型检查
+});
 
 console.log(`[DB] Connecting to PostgreSQL: ${dbUser}@${dbHost}:${dbPort}/${dbName}`);
 

@@ -1,3 +1,7 @@
+// 强制 Node.js 优先使用 IPv4
+import dns from 'dns';
+dns.setDefaultResultOrder('ipv4first');
+
 import express from 'express';
 import multer from 'multer';
 import cors from 'cors';

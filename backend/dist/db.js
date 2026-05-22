@@ -1,35 +1,46 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.initDb = initDb;
-exports.saveDb = saveDb;
-exports.getPool = getPool;
 exports.run = run;
-exports.batchRun = batchRun;
+exports.runInTransaction = runInTransaction;
+exports.batchInsert = batchInsert;
+exports.batchUpdate = batchUpdate;
+exports.batchDelete = batchDelete;
+exports.checkExisting = checkExisting;
 exports.all = all;
 exports.get = get;
-exports.getLastInsertId = getLastInsertId;
+exports.withClient = withClient;
+exports.getPool = getPool;
+exports.closeDb = closeDb;
 const pg_1 = require("pg");
-const dbHost = process.env.DB_HOST || 'localhost';
-const dbPort = parseInt(process.env.DB_PORT || '5432');
-const dbName = process.env.DB_NAME || 'wordhelper';
-const dbUser = process.env.DB_USER || 'postgres';
-const dbPassword = process.env.DB_PASSWORD || '';
-const pool = new pg_1.Pool({
-    host: dbHost,
-    port: dbPort,
-    database: dbName,
-    user: dbUser,
-    password: dbPassword,
-    connectionTimeoutMillis: 10000,
-    idleTimeoutMillis: 30000,
-    keepAlive: true,
-    keepAliveInitialDelayMillis: 10000,
-    family: 4 // 强制用 IPv4
-});
-console.log(`[DB] Connecting to PostgreSQL: ${dbUser}@${dbHost}:${dbPort}/${dbName}`);
+let pool;
 async function initDb() {
+    // 使用环境变量或者默认的 Supabase 连接字符串
+    const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:!henji2168Carlos@db.gqtsxcypwgtczlugkqsb.supabase.co:5432/postgres';
     try {
-        await pool.query(`
+        pool = new pg_1.Pool({
+            connectionString: databaseUrl,
+            max: 20,
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 10000,
+        });
+        // 测试连接
+        const client = await pool.connect();
+        console.log('[DB] Database connected successfully');
+        client.release();
+        // 初始化数据库表
+        await initTables();
+    }
+    catch (error) {
+        console.error('[DB] Failed to connect to database:', error);
+        throw error;
+    }
+}
+async function initTables() {
+    const client = await pool.connect();
+    try {
+        // 创建表
+        await client.query(`
       CREATE TABLE IF NOT EXISTS words (
         id SERIAL PRIMARY KEY,
         english TEXT NOT NULL,
@@ -40,39 +51,37 @@ async function initDb() {
         is_classified INTEGER DEFAULT 0
       )
     `);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_words_english ON words(english)`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_words_chinese ON words(chinese)`);
-        await pool.query(`
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_words_english ON words(english)`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_words_chinese ON words(chinese)`);
+        await client.query(`
       CREATE TABLE IF NOT EXISTS error_words (
         id SERIAL PRIMARY KEY,
-        word_id INTEGER NOT NULL,
-        error_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (word_id) REFERENCES words(id)
+        word_id INTEGER NOT NULL REFERENCES words(id),
+        error_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-        await pool.query(`
+        await client.query(`
       CREATE TABLE IF NOT EXISTS observation_words (
         id SERIAL PRIMARY KEY,
-        word_id INTEGER NOT NULL,
+        word_id INTEGER NOT NULL REFERENCES words(id),
         correct_count INTEGER DEFAULT 0,
-        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (word_id) REFERENCES words(id)
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-        await pool.query(`
+        await client.query(`
       CREATE TABLE IF NOT EXISTS import_files (
         id SERIAL PRIMARY KEY,
         filename TEXT NOT NULL,
         imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-        await pool.query(`
+        await client.query(`
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT
       )
     `);
-        await pool.query(`
+        await client.query(`
       CREATE TABLE IF NOT EXISTS practice_sessions (
         id SERIAL PRIMARY KEY,
         start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -80,20 +89,18 @@ async function initDb() {
         status TEXT DEFAULT 'active'
       )
     `);
-        await pool.query(`
+        await client.query(`
       CREATE TABLE IF NOT EXISTS word_relations (
         id SERIAL PRIMARY KEY,
-        root_word_id INTEGER NOT NULL,
-        child_word_id INTEGER NOT NULL,
+        root_word_id INTEGER NOT NULL REFERENCES words(id),
+        child_word_id INTEGER NOT NULL REFERENCES words(id),
         relation_type TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (root_word_id) REFERENCES words(id),
-        FOREIGN KEY (child_word_id) REFERENCES words(id)
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_relations_root ON word_relations(root_word_id)`);
-        await pool.query(`CREATE INDEX IF NOT EXISTS idx_relations_child ON word_relations(child_word_id)`);
-        await pool.query(`
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_relations_root ON word_relations(root_word_id)`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_relations_child ON word_relations(child_word_id)`);
+        await client.query(`
       CREATE TABLE IF NOT EXISTS classification_rules (
         id SERIAL PRIMARY KEY,
         suffix TEXT NOT NULL,
@@ -102,18 +109,17 @@ async function initDb() {
         active INTEGER DEFAULT 1
       )
     `);
-        await pool.query(`
+        await client.query(`
       CREATE TABLE IF NOT EXISTS import_error_logs (
         id SERIAL PRIMARY KEY,
-        import_file_id INTEGER NOT NULL,
+        import_file_id INTEGER NOT NULL REFERENCES import_files(id),
         index_number INTEGER NOT NULL,
         english TEXT,
         reason TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (import_file_id) REFERENCES import_files(id)
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-        await pool.query(`
+        await client.query(`
       CREATE TABLE IF NOT EXISTS parts_of_speech (
         id SERIAL PRIMARY KEY,
         code TEXT NOT NULL UNIQUE,
@@ -123,8 +129,9 @@ async function initDb() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-        const existingRules = await pool.query('SELECT COUNT(*) as count FROM classification_rules');
-        if (existingRules.rows[0]?.count === 0) {
+        // 检查并插入默认分类规则
+        const rulesCheck = await client.query('SELECT COUNT(*) as count FROM classification_rules');
+        if (parseInt(rulesCheck.rows[0].count) === 0) {
             const rules = [
                 { suffix: 'tion', description: '名词后缀', priority: 10 },
                 { suffix: 'ation', description: '名词后缀', priority: 10 },
@@ -151,26 +158,25 @@ async function initDb() {
                 { suffix: 'dis', description: '否定前缀', priority: 0 },
             ];
             for (const rule of rules) {
-                await pool.query('INSERT INTO classification_rules (suffix, description, priority, active) VALUES ($1, $2, $3, $4)', [rule.suffix, rule.description, rule.priority, 1]);
+                await client.query('INSERT INTO classification_rules (suffix, description, priority, active) VALUES ($1, $2, $3, $4)', [rule.suffix, rule.description, rule.priority, 1]);
             }
         }
-        console.log('[DB] PostgreSQL initialization complete');
+        console.log('[DB] Database initialized successfully');
     }
-    catch (error) {
-        console.error('[DB] Initialization error:', error);
-        throw error;
+    finally {
+        client.release();
     }
-}
-function saveDb() {
-    console.log('[DB] PostgreSQL auto-saves, no manual save needed');
-}
-function getPool() {
-    return pool;
 }
 async function run(sql, params = []) {
-    await pool.query(sql, params);
+    const client = await pool.connect();
+    try {
+        await client.query(sql, params);
+    }
+    finally {
+        client.release();
+    }
 }
-async function batchRun(operations) {
+async function runInTransaction(operations) {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
@@ -187,15 +193,100 @@ async function batchRun(operations) {
         client.release();
     }
 }
+async function batchInsert(table, columns, values) {
+    if (values.length === 0)
+        return;
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        // 批量插入，每批最多 100 条
+        const batchSize = 100;
+        for (let i = 0; i < values.length; i += batchSize) {
+            const batch = values.slice(i, i + batchSize);
+            const placeholders = batch.map((_, rowIndex) => `(${columns.map((_, colIndex) => `$${rowIndex * columns.length + colIndex + 1}`).join(', ')})`).join(', ');
+            const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES ${placeholders}`;
+            const params = batch.flat();
+            await client.query(sql, params);
+        }
+        await client.query('COMMIT');
+    }
+    catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    }
+    finally {
+        client.release();
+    }
+}
+/**
+ * 批量更新
+ */
+async function batchUpdate(table, setClause, idField, ids) {
+    if (ids.length === 0)
+        return;
+    const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
+    await run(`UPDATE ${table} SET ${setClause} WHERE ${idField} IN (${placeholders})`, ids);
+}
+/**
+ * 批量删除
+ */
+async function batchDelete(table, idField, ids) {
+    if (ids.length === 0)
+        return;
+    const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
+    await run(`DELETE FROM ${table} WHERE ${idField} IN (${placeholders})`, ids);
+}
+/**
+ * 批量检查是否存在，返回存在的ID集合
+ */
+async function checkExisting(table, conditions, idField = 'id') {
+    if (conditions.length === 0 || conditions.every(c => c.values.length === 0)) {
+        return new Set();
+    }
+    const conditionClauses = conditions.map((cond, idx) => {
+        const placeholders = cond.values.map((_, i) => `$${idx * 1000 + i + 1}`).join(',');
+        return `${cond.field} IN (${placeholders})`;
+    });
+    const params = conditions.flatMap(c => c.values);
+    const results = await all(`SELECT ${idField} FROM ${table} WHERE ${conditionClauses.join(' AND ')}`, params);
+    return new Set(results.map(r => r[idField]));
+}
 async function all(sql, params = []) {
-    const result = await pool.query(sql, params);
-    return result.rows;
+    const client = await pool.connect();
+    try {
+        const result = await client.query(sql, params);
+        return result.rows;
+    }
+    finally {
+        client.release();
+    }
 }
 async function get(sql, params = []) {
-    const result = await pool.query(sql, params);
-    return result.rows[0] || null;
+    const client = await pool.connect();
+    try {
+        const result = await client.query(sql, params);
+        return result.rows[0] || null;
+    }
+    finally {
+        client.release();
+    }
 }
-async function getLastInsertId(table = 'words') {
-    const result = await pool.query(`SELECT lastval() as id`);
-    return result.rows[0]?.id || 0;
+// 导出 pool 供需要长时间操作使用
+async function withClient(callback) {
+    const client = await pool.connect();
+    try {
+        return await callback(client);
+    }
+    finally {
+        client.release();
+    }
+}
+function getPool() {
+    return pool;
+}
+async function closeDb() {
+    if (pool) {
+        await pool.end();
+        console.log('[DB] Database connection closed');
+    }
 }

@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  word-helper:
+    build: .
+    container_name: word-helper
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    restart: unless-stopped

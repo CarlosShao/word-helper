@@ -374,7 +374,7 @@ const startPractice = async () => {
       fromPage.value = parseInt(queryFromPage as string)
     }
     
-    practiceTotal.value = savedTotal.value > 0 ? savedTotal.value : (totalWords.value - fromIndex.value)
+    practiceTotal.value = savedTotal.value &gt; 0 ? savedTotal.value : (words.value.length - fromIndex.value)
     correctCount.value = savedCorrectCount.value
     skipCount.value = savedSkipCount.value
   } else {
@@ -384,7 +384,7 @@ const startPractice = async () => {
     } else {
       currentIndex.value = savedIndex.value
     }
-    practiceTotal.value = savedTotal.value > 0 ? savedTotal.value : totalWords.value
+    practiceTotal.value = savedTotal.value &gt; 0 ? savedTotal.value : words.value.length
     correctCount.value = savedCorrectCount.value
     skipCount.value = savedSkipCount.value
     

@@ -4,6 +4,7 @@ import path from 'path';
 import dns from 'dns/promises';
 
 const dbHost = process.env.DB_HOST || 'localhost';
+const dbHostIPv4 = process.env.DB_HOST_IPV4 || '';
 const dbPort = parseInt(process.env.DB_PORT || '5432');
 const dbName = process.env.DB_NAME || 'wordhelper';
 const dbUser = process.env.DB_USER || 'postgres';
@@ -12,6 +13,10 @@ const dbPassword = process.env.DB_PASSWORD || '';
 let pool: Pool;
 
 async function resolveIPv4(host: string): Promise<string> {
+  if (dbHostIPv4) {
+    console.log(`[DB] Using configured IPv4: ${dbHostIPv4}`);
+    return dbHostIPv4;
+  }
   if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
     return host;
   }

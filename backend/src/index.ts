@@ -429,8 +429,11 @@ async function startServer() {
       const totalResult = await get('SELECT COUNT(*) as total FROM words');
       
       res.json({
-        index: result?.word_index || 0,
-        total: totalResult?.total || 0
+        success: true,
+        data: {
+          index: parseInt(result?.word_index) || 0,
+          total: parseInt(totalResult?.total) || 0
+        }
       });
     } catch (error) {
       console.error('Get word index error:', error);
@@ -502,11 +505,15 @@ async function startServer() {
       await withClient(async (client) => {
         await client.query('BEGIN');
         
-        const placeholders = wordIds.map((_, i) => `$${i + 1}`).join(',');
-        await client.query(`DELETE FROM word_relations WHERE root_word_id IN (${placeholders}) OR child_word_id IN (${placeholders})`, [...wordIds, ...wordIds]);
-        await client.query(`DELETE FROM error_words WHERE word_id IN (${placeholders})`, wordIds);
-        await client.query(`DELETE FROM observation_words WHERE word_id IN (${placeholders})`, wordIds);
-        await client.query(`DELETE FROM words WHERE id IN (${placeholders})`, wordIds);
+        // 生成两组占位符（第一组和第二组）
+        const placeholders1 = wordIds.map((_, i) => `$${i + 1}`).join(',');
+        const placeholders2 = wordIds.map((_, i) => `$${i + wordIds.length + 1}`).join(',');
+        const params = [...wordIds, ...wordIds];
+        
+        await client.query(`DELETE FROM word_relations WHERE root_word_id IN (${placeholders1}) OR child_word_id IN (${placeholders2})`, params);
+        await client.query(`DELETE FROM error_words WHERE word_id IN (${placeholders1})`, wordIds);
+        await client.query(`DELETE FROM observation_words WHERE word_id IN (${placeholders1})`, wordIds);
+        await client.query(`DELETE FROM words WHERE id IN (${placeholders1})`, wordIds);
         
         await client.query('COMMIT');
       });

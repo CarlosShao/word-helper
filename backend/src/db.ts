@@ -1,37 +1,60 @@
 import { Pool } from 'pg';
+import dns from 'dns/promises';
 
 let pool: Pool;
+let dbHostIPv4: string | null = process.env.DB_HOST_IPV4 || null;
+
+async function resolveIPv4(host: string): Promise<string> {
+  if (dbHostIPv4) {
+    console.log(`[DB] Using configured IPv4: ${dbHostIPv4}`);
+    return dbHostIPv4;
+  }
+  if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+    return host;
+  }
+  try {
+    const records = await dns.resolve4(host);
+    if (records.length > 0) {
+      console.log(`[DB] Resolved IPv4 for ${host}: ${records[0]}`);
+      return records[0];
+    }
+  } catch (error) {
+    console.warn(`[DB] Failed to resolve IPv4 for ${host}, using original: ${error}`);
+  }
+  return host;
+}
 
 export async function initDb(): Promise<void> {
   // 使用环境变量或者默认的 Supabase 连接字符串
   const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:!henji2168Carlos@db.gqtsxcypwgtczlugkqsb.supabase.co:5432/postgres';
   
-  try {
-    pool = new Pool({
-      connectionString: databaseUrl,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
-    });
-    
-    // 测试连接
-    const client = await pool.connect();
-    console.log('[DB] Database connected successfully');
-    client.release();
-    
-    // 初始化数据库表
-    await initTables();
-    
-  } catch (error) {
-    console.error('[DB] Failed to connect to database:', error);
-    throw error;
-  }
+  const url = new URL(databaseUrl);
+  const host = url.hostname;
+  
+  const resolvedHost = await resolveIPv4(host);
+  url.hostname = resolvedHost;
+  const connectionString = url.toString();
+  
+  pool = new Pool({
+    connectionString,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+  });
+  
+  console.log(`[DB] Connecting to PostgreSQL: ${url.username}@${resolvedHost}:${url.port}${url.pathname}`);
+  
+  // 测试连接
+  const client = await pool.connect();
+  console.log('[DB] Database connected successfully');
+  client.release();
+  
+  await initTables();
 }
 
 async function initTables(): Promise<void> {
   const client = await pool.connect();
   try {
-    // 创建表
     await client.query(`
       CREATE TABLE IF NOT EXISTS words (
         id SERIAL PRIMARY KEY,
@@ -43,10 +66,10 @@ async function initTables(): Promise<void> {
         is_classified INTEGER DEFAULT 0
       )
     `);
-    
+
     await client.query(`CREATE INDEX IF NOT EXISTS idx_words_english ON words(english)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_words_chinese ON words(chinese)`);
-    
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS error_words (
         id SERIAL PRIMARY KEY,
@@ -54,7 +77,7 @@ async function initTables(): Promise<void> {
         error_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS observation_words (
         id SERIAL PRIMARY KEY,
@@ -63,7 +86,7 @@ async function initTables(): Promise<void> {
         added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS import_files (
         id SERIAL PRIMARY KEY,
@@ -71,14 +94,14 @@ async function initTables(): Promise<void> {
         imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT
       )
     `);
-    
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS practice_sessions (
         id SERIAL PRIMARY KEY,
@@ -87,7 +110,7 @@ async function initTables(): Promise<void> {
         status TEXT DEFAULT 'active'
       )
     `);
-    
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS word_relations (
         id SERIAL PRIMARY KEY,
@@ -97,10 +120,10 @@ async function initTables(): Promise<void> {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
     await client.query(`CREATE INDEX IF NOT EXISTS idx_relations_root ON word_relations(root_word_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_relations_child ON word_relations(child_word_id)`);
-    
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS classification_rules (
         id SERIAL PRIMARY KEY,
@@ -110,7 +133,7 @@ async function initTables(): Promise<void> {
         active INTEGER DEFAULT 1
       )
     `);
-    
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS import_error_logs (
         id SERIAL PRIMARY KEY,
@@ -121,7 +144,7 @@ async function initTables(): Promise<void> {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS parts_of_speech (
         id SERIAL PRIMARY KEY,
@@ -132,8 +155,7 @@ async function initTables(): Promise<void> {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    
-    // 检查并插入默认分类规则
+
     const rulesCheck = await client.query('SELECT COUNT(*) as count FROM classification_rules');
     if (parseInt(rulesCheck.rows[0].count) === 0) {
       const rules = [
@@ -169,7 +191,7 @@ async function initTables(): Promise<void> {
         );
       }
     }
-    
+
     console.log('[DB] Database initialized successfully');
   } finally {
     client.release();
@@ -208,7 +230,6 @@ export async function batchInsert(table: string, columns: string[], values: any[
   try {
     await client.query('BEGIN');
     
-    // 批量插入，每批最多 100 条
     const batchSize = 100;
     for (let i = 0; i < values.length; i += batchSize) {
       const batch = values.slice(i, i + batchSize);
@@ -231,9 +252,6 @@ export async function batchInsert(table: string, columns: string[], values: any[
   }
 }
 
-/**
- * 批量更新
- */
 export async function batchUpdate(table: string, setClause: string, idField: string, ids: number[]): Promise<void> {
   if (ids.length === 0) return;
   
@@ -241,9 +259,6 @@ export async function batchUpdate(table: string, setClause: string, idField: str
   await run(`UPDATE ${table} SET ${setClause} WHERE ${idField} IN (${placeholders})`, ids);
 }
 
-/**
- * 批量删除
- */
 export async function batchDelete(table: string, idField: string, ids: number[]): Promise<void> {
   if (ids.length === 0) return;
   
@@ -251,9 +266,6 @@ export async function batchDelete(table: string, idField: string, ids: number[])
   await run(`DELETE FROM ${table} WHERE ${idField} IN (${placeholders})`, ids);
 }
 
-/**
- * 批量检查是否存在，返回存在的ID集合
- */
 export async function checkExisting(
   table: string, 
   conditions: { field: string; values: any[] }[],
@@ -294,7 +306,6 @@ export async function get(sql: string, params: any[] = []): Promise<any | null> 
   }
 }
 
-// 导出 pool 供需要长时间操作使用
 export async function withClient<T>(callback: (client: any) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {
@@ -302,10 +313,6 @@ export async function withClient<T>(callback: (client: any) => Promise<T>): Prom
   } finally {
     client.release();
   }
-}
-
-export function getPool(): Pool {
-  return pool;
 }
 
 export async function closeDb(): Promise<void> {

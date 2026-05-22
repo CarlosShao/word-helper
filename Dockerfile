@@ -34,4 +34,11 @@ RUN mkdir -p uploads data
 
 EXPOSE 3000
 
+# PostgreSQL 数据库环境变量
+ENV DB_HOST=localhost
+ENV DB_PORT=5432
+ENV DB_NAME=wordhelper
+ENV DB_USER=postgres
+ENV DB_PASSWORD=
+
 CMD ["node", "dist/index.js"]

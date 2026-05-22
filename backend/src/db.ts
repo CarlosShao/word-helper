@@ -14,6 +14,10 @@ const pool = new Pool({
   database: dbName,
   user: dbUser,
   password: dbPassword,
+  connectionTimeoutMillis: 10000,
+  idleTimeoutMillis: 30000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000,
 });
 
 console.log(`[DB] Connecting to PostgreSQL: ${dbUser}@${dbHost}:${dbPort}/${dbName}`);

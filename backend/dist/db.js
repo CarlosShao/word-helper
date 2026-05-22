@@ -1,4 +1,7 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.initDb = initDb;
 exports.run = run;
@@ -10,36 +13,55 @@ exports.checkExisting = checkExisting;
 exports.all = all;
 exports.get = get;
 exports.withClient = withClient;
-exports.getPool = getPool;
 exports.closeDb = closeDb;
 const pg_1 = require("pg");
+const promises_1 = __importDefault(require("dns/promises"));
 let pool;
+let dbHostIPv4 = process.env.DB_HOST_IPV4 || null;
+async function resolveIPv4(host) {
+    if (dbHostIPv4) {
+        console.log(`[DB] Using configured IPv4: ${dbHostIPv4}`);
+        return dbHostIPv4;
+    }
+    if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+        return host;
+    }
+    try {
+        const records = await promises_1.default.resolve4(host);
+        if (records.length > 0) {
+            console.log(`[DB] Resolved IPv4 for ${host}: ${records[0]}`);
+            return records[0];
+        }
+    }
+    catch (error) {
+        console.warn(`[DB] Failed to resolve IPv4 for ${host}, using original: ${error}`);
+    }
+    return host;
+}
 async function initDb() {
     // 使用环境变量或者默认的 Supabase 连接字符串
     const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:!henji2168Carlos@db.gqtsxcypwgtczlugkqsb.supabase.co:5432/postgres';
-    try {
-        pool = new pg_1.Pool({
-            connectionString: databaseUrl,
-            max: 20,
-            idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 10000,
-        });
-        // 测试连接
-        const client = await pool.connect();
-        console.log('[DB] Database connected successfully');
-        client.release();
-        // 初始化数据库表
-        await initTables();
-    }
-    catch (error) {
-        console.error('[DB] Failed to connect to database:', error);
-        throw error;
-    }
+    const url = new URL(databaseUrl);
+    const host = url.hostname;
+    const resolvedHost = await resolveIPv4(host);
+    url.hostname = resolvedHost;
+    const connectionString = url.toString();
+    pool = new pg_1.Pool({
+        connectionString,
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+    });
+    console.log(`[DB] Connecting to PostgreSQL: ${url.username}@${resolvedHost}:${url.port}${url.pathname}`);
+    // 测试连接
+    const client = await pool.connect();
+    console.log('[DB] Database connected successfully');
+    client.release();
+    await initTables();
 }
 async function initTables() {
     const client = await pool.connect();
     try {
-        // 创建表
         await client.query(`
       CREATE TABLE IF NOT EXISTS words (
         id SERIAL PRIMARY KEY,
@@ -129,7 +151,6 @@ async function initTables() {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-        // 检查并插入默认分类规则
         const rulesCheck = await client.query('SELECT COUNT(*) as count FROM classification_rules');
         if (parseInt(rulesCheck.rows[0].count) === 0) {
             const rules = [
@@ -199,7 +220,6 @@ async function batchInsert(table, columns, values) {
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        // 批量插入，每批最多 100 条
         const batchSize = 100;
         for (let i = 0; i < values.length; i += batchSize) {
             const batch = values.slice(i, i + batchSize);
@@ -218,27 +238,18 @@ async function batchInsert(table, columns, values) {
         client.release();
     }
 }
-/**
- * 批量更新
- */
 async function batchUpdate(table, setClause, idField, ids) {
     if (ids.length === 0)
         return;
     const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
     await run(`UPDATE ${table} SET ${setClause} WHERE ${idField} IN (${placeholders})`, ids);
 }
-/**
- * 批量删除
- */
 async function batchDelete(table, idField, ids) {
     if (ids.length === 0)
         return;
     const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
     await run(`DELETE FROM ${table} WHERE ${idField} IN (${placeholders})`, ids);
 }
-/**
- * 批量检查是否存在，返回存在的ID集合
- */
 async function checkExisting(table, conditions, idField = 'id') {
     if (conditions.length === 0 || conditions.every(c => c.values.length === 0)) {
         return new Set();
@@ -271,7 +282,6 @@ async function get(sql, params = []) {
         client.release();
     }
 }
-// 导出 pool 供需要长时间操作使用
 async function withClient(callback) {
     const client = await pool.connect();
     try {
@@ -280,9 +290,6 @@ async function withClient(callback) {
     finally {
         client.release();
     }
-}
-function getPool() {
-    return pool;
 }
 async function closeDb() {
     if (pool) {

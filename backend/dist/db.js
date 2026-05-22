@@ -15,7 +15,7 @@ exports.get = get;
 exports.withClient = withClient;
 exports.closeDb = closeDb;
 const pg_1 = require("pg");
-const promises_1 = __importDefault(require("dns/promises"));
+const dns_1 = __importDefault(require("dns"));
 let pool;
 let dbHostIPv4 = process.env.DB_HOST_IPV4 || null;
 async function resolveIPv4(host) {
@@ -26,20 +26,19 @@ async function resolveIPv4(host) {
     if (host === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
         return host;
     }
-    try {
-        const records = await promises_1.default.resolve4(host);
-        if (records.length > 0) {
-            console.log(`[DB] Resolved IPv4 for ${host}: ${records[0]}`);
-            return records[0];
-        }
-    }
-    catch (error) {
-        console.warn(`[DB] Failed to resolve IPv4 for ${host}, using original: ${error}`);
-    }
-    return host;
+    return new Promise((resolve) => {
+        dns_1.default.lookup(host, { family: 4 }, (err, address) => {
+            if (err || !address) {
+                console.warn(`[DB] Failed to resolve IPv4 for ${host}, using original hostname`);
+                resolve(host);
+            }
+            else {
+                console.log(`[DB] Resolved IPv4 for ${host}: ${address}`);
+                resolve(address);
+            }
+        });
+    });
 }
-// 强制使用 IPv4
-promises_1.default.setDefaultResultOrder('ipv4first');
 async function initDb() {
     // 使用环境变量或者默认的 Supabase 连接字符串
     const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:!henji2168Carlos@db.gqtsxcypwgtczlugkqsb.supabase.co:5432/postgres';

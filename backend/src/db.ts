@@ -28,7 +28,8 @@ async function resolveIPv4(host: string): Promise<string> {
 
 export async function initDb(): Promise<void> {
   // 使用环境变量或者默认的 Supabase 连接字符串
-  const databaseUrl = process.env.DATABASE_URL || 'postgresql://postgres:!henji2168Carlos@db.gqtsxcypwgtczlugkqsb.supabase.co:5432/postgres';
+  // 使用 AWS 连接池 URL，通常支持 IPv4
+  const databaseUrl = process.env.DATABASE_URL || 'postgres://postgres.gqtsxcypwgtczlugkqsb:!henji2168Carlos@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres';
   
   const url = new URL(databaseUrl);
   const host = url.hostname;

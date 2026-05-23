@@ -56,7 +56,9 @@ if errorlevel 1 (
 echo.
 
 echo [4/6] Cleaning up old containers and images...
-docker-compose down 2>nul
+docker stop word-helper 2>nul
+docker rm -f word-helper 2>nul
+docker-compose down -v 2>nul
 docker rmi -f word-helper 2>nul
 docker builder prune -f
 echo Cleaned up old containers and images

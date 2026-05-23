@@ -1,7 +1,7 @@
 <template>
   <div class="practice">
-    <!-- 开始页面 - 只有在没有fromIndex且没有currentWord时显示 -->
-    <el-card v-if="!currentWord && !hasFromIndex" class="start-card">
+    <!-- 开始页面 - 只有在没有fromIndex且未开始练习时显示 -->
+    <el-card v-if="!hasStartedPractice && !hasFromIndex" class="start-card">
       <div class="start-content">
         <div class="icon-wrapper">
           <el-icon class="practice-icon"><EditPen /></el-icon>
@@ -25,8 +25,8 @@
       </div>
     </el-card>
 
-    <!-- 练习页面 - 当有currentWord或者有fromIndex时显示 -->
-    <el-card v-if="currentWord || hasFromIndex" class="practice-card">
+    <!-- 练习页面 - 当已开始练习或者有fromIndex时显示 -->
+    <el-card v-if="hasStartedPractice || hasFromIndex" class="practice-card">
       <!-- 加载状态 -->
       <div v-if="loading" class="loading-container">
         <el-icon class="loading-icon is-loading" :size="40"><Loading /></el-icon>
@@ -167,6 +167,8 @@ const practiceTotal = ref(0)
 const skipCount = ref(0)
 
 // 判断是否有fromIndex参数
+// 判断是否已经开始练习（用于控制显示开始页面还是练习页面）
+const hasStartedPractice = ref(false)
 const hasFromIndex = computed(() => route.query.fromIndex !== undefined)
 
 // 判断上一个按钮是否禁用：从表格进入时，只能回到起始词
@@ -336,6 +338,9 @@ const clearProgress = async () => {
 }
 
 const startPractice = async () => {
+  // 标记为已开始练习
+  hasStartedPractice.value = true
+  
   loading.value = true
   try {
     const res = await wordApi.startPractice()
@@ -374,7 +379,7 @@ const startPractice = async () => {
       fromPage.value = parseInt(queryFromPage as string)
     }
     
-    practiceTotal.value = savedTotal.value &gt; 0 ? savedTotal.value : (words.value.length - fromIndex.value)
+    practiceTotal.value = savedTotal.value > 0 ? savedTotal.value : (words.value.length - fromIndex.value)
     correctCount.value = savedCorrectCount.value
     skipCount.value = savedSkipCount.value
   } else {
@@ -384,7 +389,7 @@ const startPractice = async () => {
     } else {
       currentIndex.value = savedIndex.value
     }
-    practiceTotal.value = savedTotal.value &gt; 0 ? savedTotal.value : words.value.length
+    practiceTotal.value = savedTotal.value > 0 ? savedTotal.value : words.value.length
     correctCount.value = savedCorrectCount.value
     skipCount.value = savedSkipCount.value
     

@@ -33,6 +33,8 @@ export async function createPool(): Promise<void> {
   const host = url.hostname;
   const resolvedHost = await resolveIPv4(host);
   
+  const sslMode = process.env.PGSSLMODE || 'require';
+  
   pool = new Pool({
     host: resolvedHost,
     port: parseInt(url.port) || 5432,
@@ -44,8 +46,11 @@ export async function createPool(): Promise<void> {
     idleTimeoutMillis: 30000,
     keepAlive: true,
     keepAliveInitialDelayMillis: 5000,
+    ssl: sslMode === 'require' || sslMode === 'prefer' ? {
+      rejectUnauthorized: false
+    } : undefined
   });
-  console.log(`[DB] Connecting to PostgreSQL: ${url.username}@${resolvedHost}:${url.port}${url.pathname}`);
+  console.log(`[DB] Connecting to PostgreSQL: ${url.username}@${resolvedHost}:${url.port}${url.pathname} (SSL: ${sslMode})`);
 }
 
 export async function initDb(): Promise<void> {

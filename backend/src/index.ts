@@ -9,8 +9,33 @@ import { parsePdf } from './pdfParser';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+const corsOptions = {
+  origin: function (origin: any, callback: any) {
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      /\.onrender\.com$/,
+      /\.vercel\.app$/,
+      /\.netlify\.app$/
+    ];
+    
+    if (!origin || allowedOrigins.some((pattern: any) => 
+      typeof pattern === 'string' ? origin === pattern : pattern.test(origin)
+    )) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 async function startServer() {
   await initDb();
@@ -1114,7 +1139,7 @@ async function startServer() {
     }
   });
 
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
   });
 }

@@ -34,7 +34,7 @@ RUN mkdir -p uploads data
 
 EXPOSE 3000
 
-# PostgreSQL 数据库环境变量（使用 DATABASE_URL 作为主要配置方式
-ENV DATABASE_URL=postgres://wordhelper:wordhelper123@postgres:5432/wordhelper
+# PostgreSQL 数据库环境变量（可以通过 DATABASE_URL 完整配置）
+ENV DATABASE_URL=
 
 CMD ["node", "dist/index.js"]

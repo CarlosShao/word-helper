@@ -10,13 +10,13 @@ echo ========================================
 echo.
 
 REM 询问是否开启内网穿透
-echo [0/7] 配置启动选项...
+echo [0/6] 配置启动选项...
 set /p use_cpolar="是否开启内网穿透(Y/N)？"
 
 echo.
 
 REM 检查Docker是否在运行
-echo [1/7] 检查Docker状态...
+echo [1/6] 检查Docker状态...
 tasklist /FI "IMAGENAME eq Docker Desktop.exe" 2>NUL | find /I /N "Docker Desktop.exe">NUL
 if "%ERRORLEVEL%"=="0" (
     echo √ Docker Desktop 已在运行
@@ -30,7 +30,7 @@ if "%ERRORLEVEL%"=="0" (
 echo.
 
 REM 切换到项目目录（脚本所在目录）
-echo [2/7] 切换到项目目录...
+echo [2/6] 切换到项目目录...
 cd /d "%~dp0"
 if errorlevel 1 (
     echo × 切换目录失败！
@@ -42,7 +42,7 @@ echo √ 已切换到项目目录
 echo.
 
 REM 拉取最新代码
-echo [3/7] 拉取最新代码...
+echo [3/6] 拉取最新代码...
 git fetch origin
 if errorlevel 1 (
     echo × Git拉取失败！将使用本地代码
@@ -61,7 +61,7 @@ if errorlevel 1 (
 echo.
 
 REM 停止并清理旧的Docker容器和镜像
-echo [4/7] 清理旧容器和镜像...
+echo [4/6] 清理旧容器和镜像...
 docker-compose down 2>nul
 docker rmi -f word-helper 2>nul
 docker builder prune -f
@@ -70,8 +70,7 @@ echo √ 已清理旧容器和镜像
 echo.
 
 REM 重新构建并启动Docker服务
-echo [5/7] 重新构建并启动服务...
-echo   构建中，请稍候（这可能需要几分钟）...
+echo [5/6] 重新构建并启动服务...
 docker-compose build --no-cache
 if errorlevel 1 (
     echo × Docker构建失败！
@@ -91,7 +90,7 @@ echo √ Docker服务已启动
 echo.
 
 REM 根据用户选择启动内网穿透
-echo [6/7] 配置内网穿透...
+echo [6/6] 配置内网穿透...
 if /i "%use_cpolar%"=="Y" (
     echo   启动cpolar内网穿透...
     start "cpolar" cmd /k "cpolar http 3000"
@@ -102,7 +101,7 @@ if /i "%use_cpolar%"=="Y" (
 
 echo.
 
-echo [7/7] 等待服务就绪...
+echo [7/6] 等待服务就绪...
 timeout /t 10 /nobreak >nul
 
 echo.
@@ -116,7 +115,7 @@ if /i "%use_cpolar%"=="Y" (
 )
 echo.
 echo 提示：
-echo   - 数据库使用本地 PostgreSQL（已包含在docker-compose中）
+echo   - 数据库使用远程Supabase数据库
 echo   - 请保持窗口打开
 echo.
 echo 按任意键退出...

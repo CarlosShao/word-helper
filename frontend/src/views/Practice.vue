@@ -181,24 +181,21 @@ const isGoBackDisabled = computed(() => {
 
 const loadWords = async () => {
   try {
-    // 获取第一页数据以获取总数
-    const firstPage = await wordApi.getWords(1, 1000)
-    totalWords.value = firstPage.data.total || firstPage.data.words.length
+    // 优化：只先获取总数，然后按需批量加载
+    const countPage = await wordApi.getWords(1, 1)
+    totalWords.value = countPage.data.total || 0
     
-    // 如果总数超过1000，分批获取所有单词
-    if (totalWords.value > 1000) {
-      const pages = Math.ceil(totalWords.value / 1000)
-      const allWords = [...firstPage.data.words]
-      
-      for (let page = 2; page <= pages; page++) {
-        const res = await wordApi.getWords(page, 1000)
-        allWords.push(...res.data.words)
-      }
-      
-      words.value = allWords
-    } else {
-      words.value = firstPage.data.words
+    // 批量加载所有单词，使用较小的页大小避免卡顿
+    const allWords: any[] = []
+    const pageSize = 500 // 使用较小的页大小，减少每次请求的数据量
+    const totalPages = Math.ceil(totalWords.value / pageSize)
+    
+    for (let page = 1; page <= totalPages; page++) {
+      const res = await wordApi.getWords(page, pageSize)
+      allWords.push(...res.data.words)
     }
+    
+    words.value = allWords
   } catch (error) {
     ElMessage.error('加载单词失败')
   }
@@ -338,10 +335,13 @@ const clearProgress = async () => {
 }
 
 const startPractice = async () => {
-  // 标记为已开始练习
-  hasStartedPractice.value = true
+  // 如果是从表格进入，已经在onMounted中设置了hasStartedPractice
+  if (!hasFromIndex.value) {
+    hasStartedPractice.value = true
+  }
   
   loading.value = true
+  
   try {
     const res = await wordApi.startPractice()
     sessionId.value = res.data.sessionId
@@ -349,6 +349,18 @@ const startPractice = async () => {
     console.error('Start practice error:', error)
   }
   
+  const queryFromIndex = route.query.fromIndex
+  const queryFromPage = route.query.fromPage
+  
+  // 先设置一些基本信息，让用户看到页面
+  if (queryFromIndex !== undefined) {
+    fromIndex.value = parseInt(queryFromIndex as string)
+    if (queryFromPage !== undefined) {
+      fromPage.value = parseInt(queryFromPage as string)
+    }
+  }
+  
+  // 然后加载单词数据
   await loadWords()
   if (words.value.length === 0) {
     ElMessage.warning('请先导入单词')
@@ -356,30 +368,27 @@ const startPractice = async () => {
     return
   }
   
-  const queryFromIndex = route.query.fromIndex
-  const queryFromPage = route.query.fromPage
-  
   if (queryFromIndex !== undefined) {
-    fromIndex.value = parseInt(queryFromIndex as string)
-    
     // 加载该起始词的独立进度
     await loadProgress(fromIndex.value)
     
+    // 确保索引不越界
+    let targetIndex = fromIndex.value
+    if (targetIndex >= words.value.length) {
+      targetIndex = Math.max(0, words.value.length - 1)
+    }
+    
     // 如果有保存的进度，且不在起始位置，弹出提示
-    if (savedIndex.value > fromIndex.value) {
+    if (savedIndex.value > fromIndex.value && savedIndex.value < words.value.length) {
       const completed = savedCorrectCount.value
       const skipped = savedSkipCount.value
       ElMessage.info(`上次从第${fromIndex.value + 1}个词开始练习，已完成${completed}个，跳过${skipped}个，现在从第${savedIndex.value + 1}个词继续`)
       currentIndex.value = savedIndex.value
     } else {
-      currentIndex.value = fromIndex.value
+      currentIndex.value = targetIndex
     }
     
-    if (queryFromPage !== undefined) {
-      fromPage.value = parseInt(queryFromPage as string)
-    }
-    
-    practiceTotal.value = savedTotal.value > 0 ? savedTotal.value : (words.value.length - fromIndex.value)
+    practiceTotal.value = savedTotal.value > 0 ? savedTotal.value : (words.value.length - currentIndex.value)
     correctCount.value = savedCorrectCount.value
     skipCount.value = savedSkipCount.value
   } else {
@@ -399,6 +408,7 @@ const startPractice = async () => {
       ElMessage.info(`上次练习已完成${completed}个，跳过${skipped}个，现在从第${savedIndex.value + 1}个词继续`)
     }
   }
+  
   loading.value = false
   showCurrentWord()
 }
@@ -508,8 +518,15 @@ const goHome = () => {
 }
 
 onMounted(() => {
-  // 直接调用startPractice，会根据是否有fromIndex来决定行为
-  startPractice()
+  // 优化：先渲染页面，然后再加载数据，避免卡顿
+  if (hasFromIndex.value) {
+    // 从表格进入，立即开始练习
+    hasStartedPractice.value = true
+  }
+  // 延迟加载，让页面先渲染出来
+  setTimeout(() => {
+    startPractice()
+  }, 100)
 })
 
 onBeforeUnmount(async () => {

@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Uploads directory (contains user uploaded files)
+backend/uploads/
+
+# Database files (temporary)
+*.db
+*.sqlite
+*.sqlite3
+
+# Testing and coverage
+coverage/
+.nyc_output/

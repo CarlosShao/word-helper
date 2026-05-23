@@ -153,7 +153,7 @@
                       <el-icon v-else><Hide /></el-icon>
                     </el-button>
                   </el-tooltip>
-                  <el-button size="small" type="success" @click="startPracticeFromWord(row.id)" v-if="!row.isChild">
+                  <el-button size="small" type="success" @click.stop="startPracticeFromWord(row.id)" v-if="!row.isChild">
                     <el-icon><EditPen /></el-icon>
                     随手拼
                   </el-button>
@@ -856,18 +856,37 @@ const cancelEdit = () => {
 // 从指定单词开始随手拼
 const startPracticeFromWord = async (wordId: number) => {
   try {
-    const res = await wordApi.getWordIndex(wordId)
-    if (res.data && res.data.index !== undefined) {
-      router.push({
-        path: '/practice',
-        query: {
-          fromWord: wordId,
-          fromIndex: res.data.index,
-          fromPage: currentPage.value
-        }
-      })
+    // 找到当前页中这个单词的位置
+    const wordIndexInPage = tableData.value.findIndex((row: any) => row.id === wordId && !row.isChild)
+    
+    // 计算全局索引
+    let globalIndex = (currentPage.value - 1) * pageSize.value
+    if (wordIndexInPage !== -1) {
+      globalIndex += wordIndexInPage
     }
+    
+    // 尝试获取准确索引，如果失败则使用估算值
+    let finalIndex = globalIndex
+    try {
+      const res = await wordApi.getWordIndex(wordId)
+      if (res.data && res.data.index !== undefined) {
+        finalIndex = res.data.index
+      }
+    } catch (e) {
+      // API 失败时使用估算值
+      console.log('使用估算索引')
+    }
+    
+    router.push({
+      path: '/practice',
+      query: {
+        fromWord: wordId,
+        fromIndex: finalIndex,
+        fromPage: currentPage.value
+      }
+    })
   } catch (error) {
+    console.error('开始练习失败:', error)
     ElMessage.error('无法开始练习')
   }
 }

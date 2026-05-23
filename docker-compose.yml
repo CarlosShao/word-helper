@@ -1,6 +1,24 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: word-helper-postgres
+    environment:
+      POSTGRES_USER: wordhelper
+      POSTGRES_PASSWORD: wordhelper123
+      POSTGRES_DB: wordhelper
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wordhelper -d wordhelper"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   word-helper:
     build: .
     container_name: word-helper
@@ -9,4 +27,12 @@ services:
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
+    environment:
+      DATABASE_URL: postgres://wordhelper:wordhelper123@postgres:5432/wordhelper
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  postgres_data:

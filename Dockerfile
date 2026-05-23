@@ -3,7 +3,7 @@ FROM node:20-alpine AS frontend-build
 
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm config set registry https://registry.npmmirror.com && npm install
 COPY frontend/ ./
 RUN npm run build
 
@@ -11,8 +11,9 @@ RUN npm run build
 FROM node:20-alpine AS backend-build
 
 WORKDIR /app/backend
+COPY backend/package*.json ./
+RUN npm config set registry https://registry.npmmirror.com && npm install --legacy-peer-deps
 COPY backend/ ./
-RUN npm install --legacy-peer-deps
 RUN npm run build
 
 # 第三阶段：生产阶段

@@ -40,10 +40,8 @@ export async function createPool(): Promise<void> {
     user: url.username,
     password: url.password,
     max: 10,
-    min: 2,
     connectionTimeoutMillis: 5000,
     idleTimeoutMillis: 30000,
-    acquireTimeoutMillis: 10000,
     keepAlive: true,
     keepAliveInitialDelayMillis: 5000,
   });

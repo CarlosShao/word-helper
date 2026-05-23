@@ -7,7 +7,7 @@ import { initDb, run, all, get, withClient, batchInsert, batchUpdate, batchDelet
 import { parsePdf } from './pdfParser';
 
 const app = express();
-const PORT = process.env.PORT || 7860;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());

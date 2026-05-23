@@ -300,32 +300,53 @@ async function startServer() {
     const search = (req.query.search as string) || '';
     const offset = (page - 1) * pageSize;
 
+    const wordIds = [];
+    let total = 0;
+    
+    // 使用单个查询获取单词和总数
     let words;
-    let total;
-
     if (search) {
       const searchTerm = `%${search}%`;
-      words = await all('SELECT * FROM words WHERE english LIKE $1 OR chinese LIKE $2 ORDER BY english LIMIT $3 OFFSET $4', 
-                  [searchTerm, searchTerm, pageSize, offset]);
-      const totalResult = await get('SELECT COUNT(*) as total FROM words WHERE english LIKE $1 OR chinese LIKE $2', 
-                  [searchTerm, searchTerm]);
-      total = parseInt(totalResult?.total) || 0;
+      const [wordsResult, countResult] = await Promise.all([
+        all('SELECT * FROM words WHERE english LIKE $1 OR chinese LIKE $2 ORDER BY english LIMIT $3 OFFSET $4', 
+            [searchTerm, searchTerm, pageSize, offset]),
+        get('SELECT COUNT(*) as total FROM words WHERE english LIKE $1 OR chinese LIKE $2', 
+            [searchTerm, searchTerm])
+      ]);
+      words = wordsResult;
+      total = parseInt(countResult?.total) || 0;
     } else {
-      words = await all('SELECT * FROM words ORDER BY english LIMIT $1 OFFSET $2', [pageSize, offset]);
-      const totalResult = await get('SELECT COUNT(*) as total FROM words');
-      total = parseInt(totalResult?.total) || 0;
+      const [wordsResult, countResult] = await Promise.all([
+        all('SELECT * FROM words ORDER BY english LIMIT $1 OFFSET $2', [pageSize, offset]),
+        get('SELECT COUNT(*) as total FROM words')
+      ]);
+      words = wordsResult;
+      total = parseInt(countResult?.total) || 0;
     }
+    
+    // 提取ID用于后续查询
+    words.forEach(w => wordIds.push(w.id));
 
-    // 获取关系数据并构建树形结构
-    const wordIds = words.map(w => w.id);
+    // 优化：一次查询获取所有需要的关系和子词
     let relations: any[] = [];
     let childWords: any[] = [];
+    let childWordIds: number[] = [];
+    let allChildWordIds: Set<number> = new Set();
     
     if (wordIds.length > 0) {
       const placeholders = wordIds.map((_, i) => `$${i + 1}`).join(',');
-      relations = await all(`SELECT * FROM word_relations WHERE root_word_id IN (${placeholders})`, wordIds);
       
-      const childWordIds = [...new Set(relations.map(r => r.child_word_id))];
+      // 使用Promise.all并行查询
+      const [relationsResult, childIdsResult] = await Promise.all([
+        all(`SELECT * FROM word_relations WHERE root_word_id IN (${placeholders})`, wordIds),
+        all(`SELECT DISTINCT child_word_id FROM word_relations WHERE root_word_id IN (${placeholders})`, wordIds)
+      ]);
+      
+      relations = relationsResult;
+      childIdsResult.forEach(r => allChildWordIds.add(r.child_word_id));
+      
+      childWordIds = [...allChildWordIds];
+      
       if (childWordIds.length > 0) {
         const childPlaceholders = childWordIds.map((_, i) => `$${i + 1}`).join(',');
         childWords = await all(`SELECT * FROM words WHERE id IN (${childPlaceholders})`, childWordIds);
@@ -378,9 +399,6 @@ async function startServer() {
       };
     });
 
-    // 获取所有子词ID
-    const allChildWordIds = new Set((await all('SELECT child_word_id FROM word_relations')).map(r => r.child_word_id));
-    
     const resultWithParentInfo = result.map(word => ({
       ...word,
       hasParent: allChildWordIds.has(word.id)

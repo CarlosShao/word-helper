@@ -39,10 +39,13 @@ export async function createPool(): Promise<void> {
     database: url.pathname.slice(1),
     user: url.username,
     password: url.password,
-    connectionTimeoutMillis: 10000,
+    max: 10,
+    min: 2,
+    connectionTimeoutMillis: 5000,
     idleTimeoutMillis: 30000,
+    acquireTimeoutMillis: 10000,
     keepAlive: true,
-    keepAliveInitialDelayMillis: 10000,
+    keepAliveInitialDelayMillis: 5000,
   });
   console.log(`[DB] Connecting to PostgreSQL: ${url.username}@${resolvedHost}:${url.port}${url.pathname}`);
 }

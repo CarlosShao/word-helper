@@ -11,9 +11,8 @@ RUN npm run build
 FROM node:20-alpine AS backend-build
 
 WORKDIR /app/backend
-COPY backend/package*.json ./
-RUN npm install
 COPY backend/ ./
+RUN npm install --legacy-peer-deps
 RUN npm run build
 
 # 第三阶段：生产阶段

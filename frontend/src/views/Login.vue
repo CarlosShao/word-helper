@@ -5,8 +5,8 @@
         <div class="logo-wrapper">
           <el-icon class="logo-icon"><Reading /></el-icon>
         </div>
-        <h1 class="app-title">单词助手</h1>
-        <p class="app-subtitle">让单词学习更高效</p>
+        <h1 class="app-title">{{ t('auth.loginTitle') }}</h1>
+        <p class="app-subtitle">{{ t('auth.loginSubtitle') }}</p>
       </div>
       
       <el-form 
@@ -19,7 +19,7 @@
         <el-form-item prop="username">
           <el-input
             v-model="loginForm.username"
-            placeholder="请输入用户名"
+            :placeholder="t('auth.usernamePlaceholder')"
             size="large"
             :prefix-icon="User"
             class="login-input"
@@ -30,7 +30,7 @@
           <el-input
             v-model="loginForm.password"
             type="password"
-            placeholder="请输入密码"
+            :placeholder="t('auth.passwordPlaceholder')"
             size="large"
             :prefix-icon="Lock"
             show-password
@@ -48,14 +48,14 @@
             @click="handleLogin"
           >
             <el-icon style="margin-right: 8px"><Unlock /></el-icon>
-            登录
+            {{ t('auth.login') }}
           </el-button>
         </el-form-item>
       </el-form>
       
       <div class="login-tips">
-        <p>管理员账号：<span class="highlight">carlos</span></p>
-        <p>管理员密码：<span class="highlight">swq</span></p>
+        <p>{{ t('auth.adminHint') }}<span class="highlight">carlos</span></p>
+        <p>{{ t('auth.adminPasswordHint') }}<span class="highlight">swq</span></p>
       </div>
     </div>
   </div>
@@ -64,11 +64,13 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { Reading, User, Lock, Unlock } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useAuth } from '../composables/useAuth'
 
+const { t } = useI18n()
 const router = useRouter()
 const loginFormRef = ref<FormInstance>()
 const logging = ref(false)
@@ -81,12 +83,12 @@ const loginForm = reactive({
 
 const loginRules = reactive<FormRules>({
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 2, max: 20, message: '用户名长度在 2 到 20 个字符', trigger: 'blur' }
+    { required: true, message: t('auth.usernameRequired'), trigger: 'blur' },
+    { min: 2, max: 20, message: t('auth.usernameLength'), trigger: 'blur' }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 1, max: 20, message: '密码长度在 1 到 20 个字符', trigger: 'blur' }
+    { required: true, message: t('auth.passwordRequired'), trigger: 'blur' },
+    { min: 1, max: 20, message: t('auth.passwordLength'), trigger: 'blur' }
   ]
 })
 
@@ -106,13 +108,13 @@ const handleLogin = async () => {
         
         if (data.success) {
           login(data.token, loginForm.username)
-          ElMessage.success('登录成功！')
+          ElMessage.success(t('auth.loginSuccess'))
           router.push('/')
         } else {
-          ElMessage.error(data.message || '登录失败')
+          ElMessage.error(data.message || t('auth.loginFailed'))
         }
       } catch (error) {
-        ElMessage.error('网络错误，请稍后重试')
+        ElMessage.error(t('auth.networkError'))
       } finally {
         logging.value = false
       }

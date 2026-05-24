@@ -4,9 +4,9 @@
       <el-header>
         <div class="header-content">
           <el-menu :default-active="activeMenu" mode="horizontal" router>
-            <el-menu-item index="/">首页</el-menu-item>
-            <el-menu-item index="/error-words">错题集</el-menu-item>
-            <el-menu-item index="/yesterday-errors">昨日错词巩固</el-menu-item>
+            <el-menu-item index="/">{{ t('nav.home') }}</el-menu-item>
+            <el-menu-item index="/error-words">{{ t('nav.errorWords') }}</el-menu-item>
+            <el-menu-item index="/yesterday-errors">{{ t('nav.yesterdayErrors') }}</el-menu-item>
           </el-menu>
           <div class="user-info">
             <span class="username">
@@ -21,7 +21,7 @@
                 <el-dropdown-menu>
                   <el-dropdown-item @click="router.push('/settings')">
                     <el-icon><Tools /></el-icon>
-                    词性配置
+                    {{ t('nav.settings') }}
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -33,7 +33,7 @@
               @click="handleLogout"
             >
               <el-icon><SwitchButton /></el-icon>
-              退出
+              {{ t('nav.logout') }}
             </el-button>
           </div>
         </div>
@@ -51,17 +51,22 @@
 <script setup lang="ts">
 import { computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { User, SwitchButton, Setting, Tools } from '@element-plus/icons-vue'
 import { useAuth } from './composables/useAuth'
+import { useAppearance } from './composables/useAppearance'
 
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const activeMenu = computed(() => route.path)
 const { isLoggedIn, username, updateAuthState, logout } = useAuth()
+const { loadSettings } = useAppearance()
 
 onMounted(() => {
   updateAuthState()
+  loadSettings()
 })
 
 watch(() => route.path, () => {
@@ -69,13 +74,13 @@ watch(() => route.path, () => {
 })
 
 const handleLogout = async () => {
-  ElMessageBox.confirm('确定要退出登录吗？', '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
+  ElMessageBox.confirm(t('auth.logoutConfirm'), t('common.warning'), {
+    confirmButtonText: t('common.confirm'),
+    cancelButtonText: t('common.cancel'),
     type: 'warning'
   }).then(() => {
     logout()
-    ElMessage.success('退出成功')
+    ElMessage.success(t('auth.logoutSuccess'))
     router.push('/login')
   }).catch(() => {})
 }

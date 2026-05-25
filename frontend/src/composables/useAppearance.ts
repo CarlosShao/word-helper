@@ -10,16 +10,19 @@ interface AppearanceSettings {
 }
 
 const defaultSettings: AppearanceSettings = {
-  backgroundColor: '#f5f7fa',
+  backgroundColor: '#f5f5f5',
   useBackgroundImage: false,
   backgroundImageUrl: '',
-  opacity: 1,
+  opacity: 0.7,
   headerColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
   useCustomHeaderColor: false
 }
 
+// 使用单例模式，确保全局只有一个设置实例
+const globalSettings = ref<AppearanceSettings>({ ...defaultSettings })
+
 export function useAppearance() {
-  const settings = ref<AppearanceSettings>({ ...defaultSettings })
+  const settings = globalSettings
 
   const loadSettings = () => {
     const saved = localStorage.getItem('appearanceSettings')

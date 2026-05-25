@@ -213,7 +213,7 @@ import { posApi } from '../api'
 import { useAppearance } from '../composables/useAppearance'
 
 const { t, locale } = useI18n()
-const { settings: appearanceSettings, resetSettings } = useAppearance()
+const { settings: appearanceSettings, resetSettings, uploadImage, saveSettings, loadSettings, applySettings, setBackgroundImage } = useAppearance()
 
 interface PartOfSpeech {
   id: number
@@ -340,10 +340,13 @@ const resetAppearanceConfirm = async () => {
 
 const handleImageUpload = async (file: any) => {
   try {
-    const imageData = await useAppearance().uploadImage(file.raw)
-    appearanceSettings.backgroundImageUrl = imageData
+    console.log('开始上传图片', file)
+    const imageData = await uploadImage(file.raw)
+    console.log('图片转换完成', imageData)
+    setBackgroundImage(imageData)
     ElMessage.success(t('settings.saveSuccess'))
   } catch (error) {
+    console.error('上传失败:', error)
     ElMessage.error(t('settings.operationFailed'))
   }
 }

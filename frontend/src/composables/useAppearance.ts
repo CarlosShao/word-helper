@@ -24,12 +24,19 @@ export function useAppearance() {
   const loadSettings = () => {
     const saved = localStorage.getItem('appearanceSettings')
     if (saved) {
-      settings.value = { ...defaultSettings, ...JSON.parse(saved) }
+      try {
+        const parsed = JSON.parse(saved)
+        settings.value = { ...defaultSettings, ...parsed }
+        console.log('从 localStorage 加载设置:', settings.value)
+      } catch (e) {
+        console.error('加载设置失败:', e)
+      }
     }
     applySettings()
   }
 
   const saveSettings = () => {
+    console.log('保存设置:', settings.value)
     localStorage.setItem('appearanceSettings', JSON.stringify(settings.value))
     applySettings()
   }
@@ -81,6 +88,12 @@ export function useAppearance() {
     })
   }
 
+  const setBackgroundImage = (imageUrl: string) => {
+    console.log('setBackgroundImage:', imageUrl)
+    settings.value.backgroundImageUrl = imageUrl
+    saveSettings()
+  }
+
   onMounted(() => {
     loadSettings()
   })
@@ -94,6 +107,8 @@ export function useAppearance() {
     loadSettings,
     saveSettings,
     resetSettings,
-    uploadImage
+    uploadImage,
+    applySettings,
+    setBackgroundImage
   }
 }

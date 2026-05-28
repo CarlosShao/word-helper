@@ -1,8 +1,35 @@
 import axios from 'axios'
+import router from './router'
+import { ElMessage } from 'element-plus'
 
 const api = axios.create({
   baseURL: '/api'
 })
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const isLoginRequest = error.config?.url?.includes('/auth/login')
+    if (error.response?.status === 401 && !isLoginRequest) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('username')
+      const isLoggedIn = document.querySelector('.app-container')
+      if (!isLoggedIn) {
+        ElMessage.warning(window.__i18n?.t('auth.loginExpired') || '登录已过期，请重新登录')
+      }
+      router.push('/login')
+    }
+    return Promise.reject(error)
+  }
+)
 
 export interface Word {
   id: number
@@ -116,6 +143,32 @@ export const wordApi = {
 
   addWord: (data: { english: string, part_of_speech: string, chinese: string }) => {
     return api.post('/words', data)
+  }
+}
+
+export const authApi = {
+  login: (email: string, password: string) => {
+    return api.post('/auth/login', { email, password })
+  },
+  
+  register: (username: string, email: string, password: string) => {
+    return api.post('/auth/register', { username, email, password })
+  },
+  
+  forgotPassword: (email: string) => {
+    return api.post('/auth/forgot-password', { email })
+  },
+  
+  resetPassword: (token: string, password: string) => {
+    return api.post('/auth/reset-password', { token, password })
+  },
+  
+  getProfile: () => {
+    return api.get('/auth/profile')
+  },
+  
+  logout: () => {
+    return api.post('/auth/logout')
   }
 }
 

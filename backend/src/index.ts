@@ -5,9 +5,10 @@ import path from 'path';
 import fs from 'fs';
 import { initDb, run, all, get, withClient, batchInsert, batchUpdate, batchDelete, checkExisting } from './db';
 import { parsePdf } from './pdfParser';
+import { authRouter, getUserIdFromToken } from './auth';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
 const corsOptions = {
   origin: function (origin: any, callback: any) {
@@ -66,16 +67,7 @@ async function startServer() {
 
   const upload = multer({ storage });
 
-  app.post('/api/login', (req, res) => {
-    const { username, password } = req.body;
-    
-    if (username === 'carlos' && password === 'swq') {
-      const token = Buffer.from(`${username}:${Date.now()}`).toString('base64');
-      res.json({ success: true, token, username });
-    } else {
-      res.status(401).json({ success: false, message: '用户名或密码错误' });
-    }
-  });
+  app.use('/api/auth', authRouter);
 
   app.post('/api/import', upload.single('file'), async (req, res) => {
     try {

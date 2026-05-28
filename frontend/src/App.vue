@@ -78,10 +78,17 @@ const handleLogout = async () => {
     confirmButtonText: t('common.confirm'),
     cancelButtonText: t('common.cancel'),
     type: 'warning'
-  }).then(() => {
-    logout()
-    ElMessage.success(t('auth.logoutSuccess'))
-    router.push('/login')
+  }).then(async () => {
+    try {
+      await logout()
+    } finally {
+      localStorage.removeItem('token')
+      localStorage.removeItem('username')
+      isLoggedIn.value = false
+      username.value = ''
+      ElMessage.success(t('auth.logoutSuccess'))
+      router.push('/login')
+    }
   }).catch(() => {})
 }
 </script>

@@ -5,6 +5,7 @@ import Practice from './views/Practice.vue'
 import ErrorWords from './views/ErrorWords.vue'
 import YesterdayErrors from './views/YesterdayErrors.vue'
 import Settings from './views/Settings.vue'
+import { useAuth } from './composables/useAuth'
 
 const routes = [
   { path: '/login', component: Login },
@@ -20,8 +21,19 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
+  const { login } = useAuth()
+  const githubToken = to.query.github_token as string
+  const username = to.query.username as string
+
+  if (githubToken) {
+    login(githubToken, username || '')
+    next({ path: '/', query: {} })
+    return
+  }
+
   const token = localStorage.getItem('token')
+  
   if (to.meta.requiresAuth && !token) {
     next('/login')
   } else if (to.path === '/login' && token) {

@@ -97,7 +97,10 @@
     "loginFailed": "Login failed",
     "networkError": "Network error, please try again later",
     "adminHint": "Admin account: ",
-    "adminPasswordHint": "Admin password: "
+    "adminPasswordHint": "Admin password: ",
+    "or": "or",
+    "githubLogin": "Login with GitHub",
+    "loginExpired": "Login expired, please login again"
   },
   "home": {
     "wordList": "Word List",

@@ -97,7 +97,10 @@
     "loginFailed": "登录失败",
     "networkError": "网络错误，请稍后重试",
     "adminHint": "管理员账号：",
-    "adminPasswordHint": "管理员密码："
+    "adminPasswordHint": "管理员密码：",
+    "or": "或",
+    "githubLogin": "使用 GitHub 登录",
+    "loginExpired": "登录已过期，请重新登录"
   },
   "home": {
     "wordList": "单词列表",

@@ -22,23 +22,37 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, from, next) => {
+  console.log('[DEBUG-ROUTER] ====== ROUTER GUARD ======');
+  console.log('[DEBUG-ROUTER] Navigating from:', from.path, 'to:', to.path);
+  console.log('[DEBUG-ROUTIN] Query params:', JSON.stringify(to.query));
+  
   const { login } = useAuth()
+  
   const githubToken = to.query.github_token as string
   const username = to.query.username as string
 
   if (githubToken) {
+    console.log('[DEBUG-ROUTER] GitHub token detected in URL!');
+    console.log('[DEBUG-ROUTER] Token:', githubToken.substring(0, 30) + '...');
+    console.log('[DEBUG-ROUTER] Username:', username);
+    
     login(githubToken, username || '')
+    console.log('[DEBUG-ROUTER] Calling login() and redirecting to /');
     next({ path: '/', query: {} })
     return
   }
 
   const token = localStorage.getItem('token')
+  console.log('[DEBUG-ROUTER] Token from localStorage:', token ? 'present (' + token.substring(0, 20) + '...)' : 'none');
   
   if (to.meta.requiresAuth && !token) {
+    console.log('[DEBUG-ROUTER] No token, requires auth - redirecting to /login');
     next('/login')
   } else if (to.path === '/login' && token) {
+    console.log('[DEBUG-ROUTER] Already logged in, redirecting to /');
     next('/')
   } else {
+    console.log('[DEBUG-ROUTER] Allowing navigation');
     next()
   }
 })

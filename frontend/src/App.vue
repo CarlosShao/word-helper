@@ -65,15 +65,19 @@ const { isLoggedIn, username, updateAuthState, logout } = useAuth()
 const { loadSettings } = useAppearance()
 
 onMounted(() => {
+  console.log('[DEBUG-APP] ====== APP MOUNTED ======');
+  console.log('[DEBUG-APP] Token in localStorage:', localStorage.getItem('token') ? 'present' : 'none');
   updateAuthState()
   loadSettings()
 })
 
 watch(() => route.path, () => {
+  console.log('[DEBUG-APP] Route changed to:', route.path);
   updateAuthState()
 })
 
 const handleLogout = async () => {
+  console.log('[DEBUG-APP] Logout button clicked');
   ElMessageBox.confirm(t('auth.logoutConfirm'), t('common.warning'), {
     confirmButtonText: t('common.confirm'),
     cancelButtonText: t('common.cancel'),
@@ -82,6 +86,7 @@ const handleLogout = async () => {
     try {
       await logout()
     } finally {
+      console.log('[DEBUG-APP] Clearing localStorage and state');
       localStorage.removeItem('token')
       localStorage.removeItem('username')
       isLoggedIn.value = false
@@ -89,7 +94,9 @@ const handleLogout = async () => {
       ElMessage.success(t('auth.logoutSuccess'))
       router.push('/login')
     }
-  }).catch(() => {})
+  }).catch(() => {
+    console.log('[DEBUG-APP] Logout cancelled');
+  })
 }
 </script>
 

@@ -57,6 +57,56 @@ export async function initDb(): Promise<void> {
   await createPool();
   
   try {
+    console.log('[DB] Creating users table...');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT NOT NULL UNIQUE,
+        email TEXT UNIQUE,
+        password TEXT,
+        provider TEXT DEFAULT 'local',
+        provider_id TEXT,
+        avatar_url TEXT,
+        email_verified INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_users_provider ON users(provider, provider_id)`);
+    console.log('[DB] users table created');
+
+    console.log('[DB] Creating user_sessions table...');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS user_sessions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        token TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_sessions_token ON user_sessions(token)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_sessions_user ON user_sessions(user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_sessions_expires ON user_sessions(expires_at)`);
+    console.log('[DB] user_sessions table created');
+
+    console.log('[DB] Creating password_resets table...');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS password_resets (
+        id SERIAL PRIMARY KEY,
+        email TEXT NOT NULL,
+        token TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        used INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token)`);
+    console.log('[DB] password_resets table created');
+
+    console.log('[DB] Creating words table...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS words (
         id SERIAL PRIMARY KEY,
@@ -68,29 +118,34 @@ export async function initDb(): Promise<void> {
         is_classified INTEGER DEFAULT 0
       )
     `);
-
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_words_english ON words(english)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_words_chinese ON words(chinese)`);
+    console.log('[DB] words table created');
 
+    console.log('[DB] Creating error_words table...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS error_words (
         id SERIAL PRIMARY KEY,
         word_id INTEGER NOT NULL,
+        user_id INTEGER,
         error_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
       )
     `);
 
+    console.log('[DB] Creating observation_words table...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS observation_words (
         id SERIAL PRIMARY KEY,
         word_id INTEGER NOT NULL,
+        user_id INTEGER,
         correct_count INTEGER DEFAULT 0,
         added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
       )
     `);
 
+    console.log('[DB] Creating import_files table...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS import_files (
         id SERIAL PRIMARY KEY,
@@ -99,6 +154,7 @@ export async function initDb(): Promise<void> {
       )
     `);
 
+    console.log('[DB] Creating settings table...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
@@ -106,18 +162,22 @@ export async function initDb(): Promise<void> {
       )
     `);
 
+    console.log('[DB] Creating practice_sessions table...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS practice_sessions (
         id SERIAL PRIMARY KEY,
+        user_id INTEGER,
         start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         end_time TIMESTAMP,
         status TEXT DEFAULT 'active'
       )
     `);
 
+    console.log('[DB] Creating word_relations table...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS word_relations (
         id SERIAL PRIMARY KEY,
+        user_id INTEGER,
         root_word_id INTEGER NOT NULL,
         child_word_id INTEGER NOT NULL,
         relation_type TEXT NOT NULL,
@@ -126,10 +186,10 @@ export async function initDb(): Promise<void> {
         FOREIGN KEY (child_word_id) REFERENCES words(id) ON DELETE CASCADE
       )
     `);
-
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_relations_root ON word_relations(root_word_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_relations_child ON word_relations(child_word_id)`);
 
+    console.log('[DB] Creating classification_rules table...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS classification_rules (
         id SERIAL PRIMARY KEY,
@@ -140,6 +200,7 @@ export async function initDb(): Promise<void> {
       )
     `);
 
+    console.log('[DB] Creating import_error_logs table...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS import_error_logs (
         id SERIAL PRIMARY KEY,
@@ -152,6 +213,7 @@ export async function initDb(): Promise<void> {
       )
     `);
 
+    console.log('[DB] Creating parts_of_speech table...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS parts_of_speech (
         id SERIAL PRIMARY KEY,
@@ -163,6 +225,7 @@ export async function initDb(): Promise<void> {
       )
     `);
 
+    console.log('[DB] Inserting default classification rules...');
     await pool.query(`
       INSERT INTO classification_rules (suffix, description, priority, active) VALUES
         ('tion', '名词后缀', 10, 1),
@@ -191,9 +254,10 @@ export async function initDb(): Promise<void> {
       ON CONFLICT DO NOTHING
     `);
 
+    console.log('[DB] Inserting default parts of speech...');
     await pool.query(`
       INSERT INTO parts_of_speech (code, name, description) VALUES
-        ('n.', '名词', '表示人、事、物、地点或抽象概念'),
+        ('n.', '名词', '表示人，事、物、地点或抽象概念'),
         ('v.', '动词', '表示动作、状态或发生的事情'),
         ('adj.', '形容词', '描述或修饰名词'),
         ('adv.', '副词', '修饰动词、形容词或其他副词'),

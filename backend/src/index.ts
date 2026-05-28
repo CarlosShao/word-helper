@@ -552,32 +552,70 @@ async function startServer() {
   });
 
   app.get('/api/error-words', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: '未授权' });
+    }
+    
+    const token = authHeader.substring(7);
+    const userId = await getUserIdFromToken(token);
+    
+    if (!userId) {
+      return res.status(401).json({ error: '无效的token' });
+    }
+    
     const words = await all(`
       SELECT w.* FROM words w 
       JOIN error_words ew ON w.id = ew.word_id
-    `);
+      WHERE w.user_id = $1
+    `, [userId]);
     res.json({ words });
   });
 
   app.get('/api/observation-words', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: '未授权' });
+    }
+    
+    const token = authHeader.substring(7);
+    const userId = await getUserIdFromToken(token);
+    
+    if (!userId) {
+      return res.status(401).json({ error: '无效的token' });
+    }
+    
     const words = await all(`
       SELECT w.*, ow.correct_count FROM words w 
       JOIN observation_words ow ON w.id = ow.word_id
-    `);
+      WHERE w.user_id = $1
+    `, [userId]);
     res.json({ words });
   });
 
   app.post('/api/observation-words/:wordId/correct', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: '未授权' });
+    }
+    
+    const token = authHeader.substring(7);
+    const userId = await getUserIdFromToken(token);
+    
+    if (!userId) {
+      return res.status(401).json({ error: '无效的token' });
+    }
+    
     const wordId = parseInt(req.params.wordId);
-    const word = await get('SELECT * FROM observation_words WHERE word_id = $1', [wordId]);
+    const word = await get('SELECT * FROM observation_words WHERE user_id = $1 AND word_id = $2', [userId, wordId]);
     
     if (word) {
       const correctCount = parseInt(String(word.correct_count || '0'));
       const newCount = correctCount + 1;
       if (newCount >= 2) {
-        await run('DELETE FROM observation_words WHERE word_id = $1', [wordId]);
+        await run('DELETE FROM observation_words WHERE user_id = $1 AND word_id = $2', [userId, wordId]);
       } else {
-        await run('UPDATE observation_words SET correct_count = $1 WHERE word_id = $2', [newCount, wordId]);
+        await run('UPDATE observation_words SET correct_count = $1 WHERE user_id = $2 AND word_id = $3', [newCount, userId, wordId]);
       }
     }
     
@@ -585,17 +623,41 @@ async function startServer() {
   });
 
   app.post('/api/observation-words/:wordId/error', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: '未授权' });
+    }
+    
+    const token = authHeader.substring(7);
+    const userId = await getUserIdFromToken(token);
+    
+    if (!userId) {
+      return res.status(401).json({ error: '无效的token' });
+    }
+    
     const wordId = parseInt(req.params.wordId);
-    await run('DELETE FROM observation_words WHERE word_id = $1', [wordId]);
-    const existing = await get('SELECT * FROM error_words WHERE word_id = $1', [wordId]);
+    await run('DELETE FROM observation_words WHERE user_id = $1 AND word_id = $2', [userId, wordId]);
+    const existing = await get('SELECT * FROM error_words WHERE user_id = $1 AND word_id = $2', [userId, wordId]);
     if (!existing) {
-      await run('INSERT INTO error_words (word_id) VALUES ($1)', [wordId]);
+      await run('INSERT INTO error_words (user_id, word_id) VALUES ($1, $2)', [userId, wordId]);
     }
     res.json({ success: true });
   });
 
   app.get('/api/yesterday-errors', async (req, res) => {
-    const lastSession = await get('SELECT * FROM practice_sessions WHERE status = $1 ORDER BY id DESC LIMIT 1', ['completed']);
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: '未授权' });
+    }
+    
+    const token = authHeader.substring(7);
+    const userId = await getUserIdFromToken(token);
+    
+    if (!userId) {
+      return res.status(401).json({ error: '无效的token' });
+    }
+    
+    const lastSession = await get('SELECT * FROM practice_sessions WHERE user_id = $1 AND status = $2 ORDER BY id DESC LIMIT 1', [userId, 'completed']);
     
     if (!lastSession) {
       return res.json({ words: [], sessionId: null });
@@ -604,30 +666,53 @@ async function startServer() {
     const words = await all(`
       SELECT w.*, ew.error_date FROM words w
       JOIN error_words ew ON w.id = ew.word_id
-      WHERE ew.error_date >= $1 AND ew.error_date <= $2
-      AND ew.error_date <= $2
+      WHERE w.user_id = $1 AND ew.error_date >= $2 AND ew.error_date <= $3
       ORDER BY ew.error_date DESC
-    `, [lastSession.start_time, lastSession.end_time]);
+    `, [userId, lastSession.start_time, lastSession.end_time]);
     
     res.json({ words, sessionId: lastSession.id });
   });
 
   app.post('/api/practice/start', async (req, res) => {
-    await run('UPDATE practice_sessions SET status = $1 WHERE status = $2', ['abandoned', 'active']);
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: '未授权' });
+    }
     
-    await run('INSERT INTO practice_sessions (start_time, status) VALUES (NOW(), $1)', ['active']);
-    const session = await get('SELECT * FROM practice_sessions ORDER BY id DESC LIMIT 1');
+    const token = authHeader.substring(7);
+    const userId = await getUserIdFromToken(token);
+    
+    if (!userId) {
+      return res.status(401).json({ error: '无效的token' });
+    }
+    
+    await run('UPDATE practice_sessions SET status = $1 WHERE user_id = $2 AND status = $3', ['abandoned', userId, 'active']);
+    
+    await run('INSERT INTO practice_sessions (user_id, start_time, status) VALUES ($1, NOW(), $2)', [userId, 'active']);
+    const session = await get('SELECT * FROM practice_sessions WHERE user_id = $1 ORDER BY id DESC LIMIT 1', [userId]);
     
     res.json({ success: true, sessionId: session?.id });
   });
 
   app.post('/api/practice/end', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: '未授权' });
+    }
+    
+    const token = authHeader.substring(7);
+    const userId = await getUserIdFromToken(token);
+    
+    if (!userId) {
+      return res.status(401).json({ error: '无效的token' });
+    }
+    
     const { sessionId } = req.body;
     
     if (sessionId) {
-      await run('UPDATE practice_sessions SET status = $1, end_time = NOW() WHERE id = $2', ['completed', sessionId]);
+      await run('UPDATE practice_sessions SET status = $1, end_time = NOW() WHERE user_id = $2 AND id = $3', ['completed', userId, sessionId]);
     } else {
-      await run('UPDATE practice_sessions SET status = $1, end_time = NOW() WHERE status = $2', ['completed', 'active']);
+      await run('UPDATE practice_sessions SET status = $1, end_time = NOW() WHERE user_id = $2 AND status = $3', ['completed', userId, 'active']);
     }
     
     res.json({ success: true });
@@ -794,15 +879,27 @@ async function startServer() {
   });
 
   app.get('/api/words/:id/relations', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: '未授权' });
+    }
+    
+    const token = authHeader.substring(7);
+    const userId = await getUserIdFromToken(token);
+    
+    if (!userId) {
+      return res.status(401).json({ error: '无效的token' });
+    }
+    
     const wordId = parseInt(req.params.id);
     
-    const word = await get('SELECT * FROM words WHERE id = $1', [wordId]);
+    const word = await get('SELECT * FROM words WHERE user_id = $1 AND id = $2', [userId, wordId]);
     if (!word) {
       return res.status(404).json({ success: false, message: '单词不存在' });
     }
 
-    const relations = await all('SELECT * FROM word_relations');
-    const allWords = await all('SELECT * FROM words');
+    const relations = await all('SELECT * FROM word_relations WHERE user_id = $1', [userId]);
+    const allWords = await all('SELECT * FROM words WHERE user_id = $1', [userId]);
     
     const wordMap = new Map<number, any>();
     allWords.forEach(w => {
@@ -852,34 +949,82 @@ async function startServer() {
   });
 
   app.post('/api/relations', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: '未授权' });
+    }
+    
+    const token = authHeader.substring(7);
+    const userId = await getUserIdFromToken(token);
+    
+    if (!userId) {
+      return res.status(401).json({ error: '无效的token' });
+    }
+    
     const { rootWordId, childWordId, relationType } = req.body;
     
-    const existing = await get('SELECT * FROM word_relations WHERE root_word_id = $1 AND child_word_id = $2 AND relation_type = $3', 
-                        [rootWordId, childWordId, relationType]);
+    const existing = await get('SELECT * FROM word_relations WHERE user_id = $1 AND root_word_id = $2 AND child_word_id = $3 AND relation_type = $4', 
+                        [userId, rootWordId, childWordId, relationType]);
     
     if (existing) {
       return res.json({ success: false, message: '关系已存在' });
     }
 
-    await run('INSERT INTO word_relations (root_word_id, child_word_id, relation_type) VALUES ($1, $2, $3)',
-        [rootWordId, childWordId, relationType]);
+    await run('INSERT INTO word_relations (user_id, root_word_id, child_word_id, relation_type) VALUES ($1, $2, $3, $4)',
+        [userId, rootWordId, childWordId, relationType]);
 
     res.json({ success: true });
   });
 
   app.delete('/api/relations/:id', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: '未授权' });
+    }
+    
+    const token = authHeader.substring(7);
+    const userId = await getUserIdFromToken(token);
+    
+    if (!userId) {
+      return res.status(401).json({ error: '无效的token' });
+    }
+    
     const id = parseInt(req.params.id);
-    await run('DELETE FROM word_relations WHERE id = $1', [id]);
+    await run('DELETE FROM word_relations WHERE user_id = $1 AND id = $2', [userId, id]);
     res.json({ success: true });
   });
 
   app.delete('/api/relations/word/:wordId', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: '未授权' });
+    }
+    
+    const token = authHeader.substring(7);
+    const userId = await getUserIdFromToken(token);
+    
+    if (!userId) {
+      return res.status(401).json({ error: '无效的token' });
+    }
+    
     const wordId = parseInt(req.params.wordId);
-    await run('DELETE FROM word_relations WHERE child_word_id = $1', [wordId]);
+    await run('DELETE FROM word_relations WHERE user_id = $1 AND child_word_id = $2', [userId, wordId]);
     res.json({ success: true });
   });
 
   app.post('/api/classify/all', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: '未授权' });
+    }
+    
+    const token = authHeader.substring(7);
+    const userId = await getUserIdFromToken(token);
+    
+    if (!userId) {
+      return res.status(401).json({ error: '无效的token' });
+    }
+    
     const { keepManual = false, incremental = false } = req.body;
 
     try {
@@ -887,15 +1032,15 @@ async function startServer() {
 
       if (!keepManual) {
         console.log('[Classify] Clearing existing relations...');
-        await run('DELETE FROM word_relations');
-        await run('UPDATE words SET is_classified = 0');
+        await run('DELETE FROM word_relations WHERE user_id = $1', [userId]);
+        await run('UPDATE words SET is_classified = 0 WHERE user_id = $1', [userId]);
       }
 
       let words: any[];
       if (incremental) {
-        words = await all('SELECT * FROM words WHERE is_classified = 0');
+        words = await all('SELECT * FROM words WHERE user_id = $1 AND is_classified = 0', [userId]);
       } else {
-        words = await all('SELECT * FROM words');
+        words = await all('SELECT * FROM words WHERE user_id = $1', [userId]);
       }
       
       if (words.length === 0) {
@@ -905,7 +1050,7 @@ async function startServer() {
 
       console.log(`[Classify] Classifying ${words.length} words...`);
 
-      const allWords = await all('SELECT * FROM words');
+      const allWords = await all('SELECT * FROM words WHERE user_id = $1', [userId]);
       const rules = await all('SELECT * FROM classification_rules WHERE active = 1 ORDER BY priority DESC');
 
       const wordIndex = new Map<string, number>();
@@ -913,12 +1058,12 @@ async function startServer() {
         wordIndex.set(w.english.toLowerCase(), w.id);
       });
 
-      const relationsToInsert: Array<{ root: number; child: number; type: string }> = [];
+      const relationsToInsert: Array<{ user_id: number; root: number; child: number; type: string }> = [];
       const processedIds: number[] = [];
 
       const sortedAllWords = [...allWords].sort((a, b) => a.english.length - b.english.length);
 
-      const existingRelations = await all('SELECT root_word_id, child_word_id, relation_type FROM word_relations');
+      const existingRelations = await all('SELECT root_word_id, child_word_id, relation_type FROM word_relations WHERE user_id = $1', [userId]);
       const existingRelSet = new Set(existingRelations.map(r => `${r.root_word_id}-${r.child_word_id}-${r.relation_type}`));
 
       for (const word of words) {
@@ -930,7 +1075,7 @@ async function startServer() {
           if (coreWord && coreWord !== word.id) {
             const key = `${coreWord}-${word.id}-phrase`;
             if (!existingRelSet.has(key)) {
-              relationsToInsert.push({ root: coreWord, child: word.id, type: 'phrase' });
+              relationsToInsert.push({ user_id: userId, root: coreWord, child: word.id, type: 'phrase' });
               wasClassified = true;
             }
           }
@@ -939,7 +1084,7 @@ async function startServer() {
           if (rootWord && rootWord !== word.id) {
             const key = `${rootWord}-${word.id}-derivative`;
             if (!existingRelSet.has(key)) {
-              relationsToInsert.push({ root: rootWord, child: word.id, type: 'derivative' });
+              relationsToInsert.push({ user_id: userId, root: rootWord, child: word.id, type: 'derivative' });
               wasClassified = true;
             }
           }
@@ -953,8 +1098,8 @@ async function startServer() {
       console.log(`[Classify] Inserting ${relationsToInsert.length} relations...`);
 
       if (relationsToInsert.length > 0) {
-        const relationValues = relationsToInsert.map(r => [r.root, r.child, r.type]);
-        await batchInsert('word_relations', ['root_word_id', 'child_word_id', 'relation_type'], relationValues);
+        const relationValues = relationsToInsert.map(r => [r.user_id, r.root, r.child, r.type]);
+        await batchInsert('word_relations', ['user_id', 'root_word_id', 'child_word_id', 'relation_type'], relationValues);
       }
 
       if (processedIds.length > 0 && !incremental) {
@@ -970,6 +1115,18 @@ async function startServer() {
   });
   
   app.post('/api/classify/reset', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: '未授权' });
+    }
+    
+    const token = authHeader.substring(7);
+    const userId = await getUserIdFromToken(token);
+    
+    if (!userId) {
+      return res.status(401).json({ error: '无效的token' });
+    }
+    
     const { wordId } = req.body;
     
     try {
@@ -978,9 +1135,9 @@ async function startServer() {
       await withClient(async (client) => {
         await client.query('BEGIN');
         
-        await client.query('DELETE FROM word_relations WHERE child_word_id = $1', [wordId]);
-        await client.query('DELETE FROM word_relations WHERE root_word_id = $1', [wordId]);
-        await client.query('UPDATE words SET is_classified = 0 WHERE id = $1', [wordId]);
+        await client.query('DELETE FROM word_relations WHERE user_id = $1 AND child_word_id = $2', [userId, wordId]);
+        await client.query('DELETE FROM word_relations WHERE user_id = $1 AND root_word_id = $2', [userId, wordId]);
+        await client.query('UPDATE words SET is_classified = 0 WHERE user_id = $1 AND id = $2', [userId, wordId]);
         
         await client.query('COMMIT');
       });
@@ -994,22 +1151,47 @@ async function startServer() {
   });
 
   app.get('/api/words/roots', async (req, res) => {
-    const childIdsResult = await all('SELECT DISTINCT child_word_id FROM word_relations');
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: '未授权' });
+    }
+    
+    const token = authHeader.substring(7);
+    const userId = await getUserIdFromToken(token);
+    
+    if (!userId) {
+      return res.status(401).json({ error: '无效的token' });
+    }
+    
+    const childIdsResult = await all('SELECT DISTINCT child_word_id FROM word_relations WHERE user_id = $1', [userId]);
     const childIds = childIdsResult.map((r: any) => r.child_word_id);
     let roots: any[];
     
     if (childIds.length > 0) {
-      const placeholders = childIds.map((_, i) => `$${i + 1}`).join(',');
-      roots = await all(`SELECT * FROM words WHERE id NOT IN (${placeholders}) ORDER BY english`, childIds);
+      const params = [userId, ...childIds];
+      const placeholders = childIds.map((_, i) => `$${i + 2}`).join(',');
+      roots = await all(`SELECT * FROM words WHERE user_id = $1 AND id NOT IN (${placeholders}) ORDER BY english`, params);
     } else {
-      roots = await all('SELECT * FROM words ORDER BY english');
+      roots = await all('SELECT * FROM words WHERE user_id = $1 ORDER BY english', [userId]);
     }
     
     res.json({ words: roots });
   });
 
   app.get('/api/db/status', async (req, res) => {
-    const totalResult = await get('SELECT COUNT(*) as count FROM words');
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: '未授权' });
+    }
+    
+    const token = authHeader.substring(7);
+    const userId = await getUserIdFromToken(token);
+    
+    if (!userId) {
+      return res.status(401).json({ error: '无效的token' });
+    }
+    
+    const totalResult = await get('SELECT COUNT(*) as count FROM words WHERE user_id = $1', [userId]);
     res.json({
       success: true,
       totalWords: totalResult?.count || 0,

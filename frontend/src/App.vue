@@ -15,7 +15,7 @@
             </span>
             <el-dropdown>
               <el-button type="primary" size="small" circle>
-                <el-icon><Settings /></el-icon>
+                <el-icon><More /></el-icon>
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu>
@@ -53,7 +53,7 @@ import { computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { User, SwitchButton, Setting, Tools } from '@element-plus/icons-vue'
+import { User, SwitchButton, More, Tools } from '@element-plus/icons-vue'
 import { useAuth } from './composables/useAuth'
 import { useAppearance } from './composables/useAppearance'
 

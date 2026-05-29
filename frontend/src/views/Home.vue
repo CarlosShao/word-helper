@@ -6,25 +6,25 @@
           <div class="header-top">
             <div class="header-left">
               <el-icon class="header-icon"><Notebook /></el-icon>
-              <span>单词列表</span>
-              <el-tag type="info" size="small" style="margin-left: 12px;">共 {{ total }} 个</el-tag>
+              <span>{{ t('home.wordList') }}</span>
+              <el-tag type="info" size="small" style="margin-left: 12px;">{{ t('home.totalWords', { count: total }) }}</el-tag>
             </div>
             <div class="header-actions">
               <el-button type="danger" @click="batchDeleteSelected" :disabled="selectedWords.length === 0" size="small">
                 <el-icon><Delete /></el-icon>
-                批量删除 ({{ selectedWords.length }})
+                {{ t('home.batchDelete', { count: selectedWords.length }) }}
               </el-button>
               <el-button type="warning" @click="reclassifyWords" :loading="classifying" size="small">
                 <el-icon><RefreshRight /></el-icon>
-                重新分类
+                {{ t('home.reclassify') }}
               </el-button>
               <el-button type="primary" @click="showUploadDialog" size="small">
                 <el-icon><Upload /></el-icon>
-                导入
+                {{ t('home.importWords') }}
               </el-button>
               <el-button type="info" @click="showImportLogs" size="small">
                 <el-icon><Document /></el-icon>
-                导入日志
+                {{ t('home.importLogs') }}
               </el-button>
             </div>
           </div>
@@ -32,7 +32,7 @@
             <div class="search-bar-row1">
               <el-input
                 v-model="searchText"
-                placeholder="搜索中英文..."
+                :placeholder="t('home.searchPlaceholder')"
                 style="width: 220px;"
                 clearable
                 @keyup.enter="loadWords"
@@ -47,7 +47,7 @@
               </el-button>
               <el-button type="primary" @click="startAddNew" size="small" class="add-word-btn">
                 <el-icon><Plus /></el-icon>
-                新增单词
+                {{ t('home.addWord') }}
               </el-button>
             </div>
             <div class="search-bar-row2">
@@ -55,16 +55,16 @@
               <el-button @click="toggleAllChinese" size="small">
                 <el-icon v-if="allChineseHidden"><View /></el-icon>
                 <el-icon v-else><Hide /></el-icon>
-                {{ allChineseHidden ? '显示中文' : '隐藏中文' }}
+                {{ allChineseHidden ? t('home.showChinese') : t('home.hideChinese') }}
               </el-button>
               <el-button @click="toggleAllEnglish" size="small">
                 <el-icon v-if="allEnglishHidden"><View /></el-icon>
                 <el-icon v-else><Hide /></el-icon>
-                {{ allEnglishHidden ? '显示英文' : '隐藏英文' }}
+                {{ allEnglishHidden ? t('home.showEnglish') : t('home.hideEnglish') }}
               </el-button>
               <el-button type="success" @click="goToPractice" size="small">
                 <el-icon style="margin-right: 4px;"><Edit /></el-icon>
-                随手拼
+                {{ t('home.practice') }}
               </el-button>
             </div>
           </div>
@@ -83,12 +83,12 @@
           @selection-change="handleSelectionChange"
         >
           <el-table-column type="selection" width="55" align="center" :selectable="checkSelectable" />
-          <el-table-column label="序号" width="70" align="center">
+          <el-table-column :label="t('home.serialNumber')" width="70" align="center">
             <template #default="{ row, $index }">
               <span v-if="!row.isChild && row.type !== 'group'">{{ (currentPage - 1) * pageSize + $index + 1 }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="英文" width="220" show-overflow-tooltip>
+          <el-table-column :label="t('home.english')" width="220" show-overflow-tooltip>
             <template #default="{ row }">
               <template v-if="row.type === 'group'">
                 <el-tag size="small" type="warning">{{ row.title }}</el-tag>
@@ -108,7 +108,7 @@
               </template>
             </template>
           </el-table-column>
-          <el-table-column label="词性" width="130" align="left">
+          <el-table-column :label="t('home.partOfSpeech')" width="130" align="left">
             <template #default="{ row }">
               <template v-if="row.type !== 'group' && row.id">
                 <template v-if="!row.isChild && editingId === row.id && editingField === 'part_of_speech'">
@@ -124,7 +124,7 @@
               </template>
             </template>
           </el-table-column>
-          <el-table-column label="中文" min-width="350" show-overflow-tooltip>
+          <el-table-column :label="t('home.chinese')" min-width="350" show-overflow-tooltip>
             <template #default="{ row }">
               <template v-if="row.type !== 'group' && row.id">
                 <template v-if="!row.isChild && editingId === row.id && editingField === 'chinese'">
@@ -137,17 +137,17 @@
               </template>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="380" align="left" fixed="right">
+          <el-table-column :label="t('home.actions')" width="380" align="left" fixed="right">
             <template #default="{ row }">
               <template v-if="row.type !== 'group' && row.id">
                 <div class="action-buttons-row">
-                  <el-tooltip :content="hiddenChinese.has(row.id) ? '显示中文' : '隐藏中文'" placement="top">
+                  <el-tooltip :content="hiddenChinese.has(row.id) ? t('home.showChinese') : t('home.hideChinese')" placement="top">
                     <el-button size="small" @click="toggleChinese(row.id)" :type="hiddenChinese.has(row.id) ? 'info' : 'default'" v-if="!row.isChild">
                       <el-icon v-if="hiddenChinese.has(row.id)"><View /></el-icon>
                       <el-icon v-else><Hide /></el-icon>
                     </el-button>
                   </el-tooltip>
-                  <el-tooltip :content="hiddenEnglish.has(row.id) ? '显示英文' : '隐藏英文'" placement="top">
+                  <el-tooltip :content="hiddenEnglish.has(row.id) ? t('home.showEnglish') : t('home.hideEnglish')" placement="top">
                     <el-button size="small" @click="toggleEnglish(row.id)" :type="hiddenEnglish.has(row.id) ? 'info' : 'default'" v-if="!row.isChild">
                       <el-icon v-if="hiddenEnglish.has(row.id)"><View /></el-icon>
                       <el-icon v-else><Hide /></el-icon>
@@ -155,29 +155,29 @@
                   </el-tooltip>
                   <el-button size="small" type="success" @click.stop="startPracticeFromWord(row.id)" v-if="!row.isChild">
                     <el-icon><EditPen /></el-icon>
-                    随手拼
+                    {{ t('home.practice') }}
                   </el-button>
                   <el-dropdown trigger="click" size="small" v-if="!row.isChild && !row.hasParent">
                     <el-button size="small" type="default">
                       <el-icon><More /></el-icon>
-                      更多
+                      {{ t('home.more') }}
                     </el-button>
                     <template #dropdown>
                       <el-dropdown-menu>
                         <el-dropdown-item @click="resetWordClassification(row.id)">
                           <el-icon><RefreshRight /></el-icon>
-                          重新分类
+                          {{ t('home.resetClassification') }}
                         </el-dropdown-item>
                         <el-dropdown-item @click="showManualClassification(row.id)">
                           <el-icon><Edit /></el-icon>
-                          手动分类
+                          {{ t('home.manualClassification') }}
                         </el-dropdown-item>
                       </el-dropdown-menu>
                     </template>
                   </el-dropdown>
                   <el-button size="small" type="danger" @click="deleteWord(row)" v-if="!row.isChild">
                     <el-icon><Delete /></el-icon>
-                    删除
+                    {{ t('common.delete') }}
                   </el-button>
                 </div>
               </template>
@@ -189,31 +189,31 @@
       <!-- 添加新单词行 -->
       <template v-if="addingNew" class="new-word-row">
         <div class="new-word-container">
-          <div class="new-word-row">
-            <div class="new-word-label">新增单词</div>
-            <div class="new-word-fields">
-              <div class="field-group">
-                <span class="field-label">英文：</span>
-                <el-input v-model="newWord.english" placeholder="请输入英文" size="small" class="field-input" />
-              </div>
-              <div class="field-group">
-                <span class="field-label">词性：</span>
-                <el-select v-model="newWord.part_of_speech" size="small" class="field-input pos-input" placeholder="选择词性" filterable>
-                  <el-option label="(空)" value="" />
-                  <el-option v-for="pos in partsOfSpeech" :key="pos.code" :label="`${pos.code} - ${pos.name}`" :value="pos.code" />
-                </el-select>
-              </div>
-              <div class="field-group">
-                <span class="field-label">中文：</span>
-                <el-input v-model="newWord.chinese" placeholder="请输入中文释义" size="small" class="field-input chinese-input" />
-              </div>
-              <div class="field-actions">
-                <el-button type="primary" size="small" @click="saveNewWord">保存</el-button>
-                <el-button size="small" @click="cancelAddNew">取消</el-button>
-              </div>
+        <div class="new-word-row">
+          <div class="new-word-label">{{ t('home.addNewWord') }}</div>
+          <div class="new-word-fields">
+            <div class="field-group">
+              <span class="field-label">{{ t('home.englishLabel') }}</span>
+              <el-input v-model="newWord.english" :placeholder="t('home.searchPlaceholder')" size="small" class="field-input" />
+            </div>
+            <div class="field-group">
+              <span class="field-label">{{ t('home.partOfSpeechLabel') }}</span>
+              <el-select v-model="newWord.part_of_speech" size="small" class="field-input pos-input" :placeholder="t('home.searchPlaceholder')" filterable>
+                <el-option :label="t('common.none')" value="" />
+                <el-option v-for="pos in partsOfSpeech" :key="pos.code" :label="`${pos.code} - ${pos.name}`" :value="pos.code" />
+              </el-select>
+            </div>
+            <div class="field-group">
+              <span class="field-label">{{ t('home.chineseLabel') }}</span>
+              <el-input v-model="newWord.chinese" :placeholder="t('home.searchPlaceholder')" size="small" class="field-input chinese-input" />
+            </div>
+            <div class="field-actions">
+              <el-button type="primary" size="small" @click="saveNewWord">{{ t('common.save') }}</el-button>
+              <el-button size="small" @click="cancelAddNew">{{ t('common.cancel') }}</el-button>
             </div>
           </div>
         </div>
+      </div>
       </template>
 
       <div class="pagination-wrapper">
@@ -232,13 +232,13 @@
     <!-- 手动分类对话框 -->
     <el-dialog
       v-model="manualClassificationDialogVisible"
-      title="手动分类"
+      :title="t('home.manualClassification')"
       width="800px"
       class="manual-classification-dialog"
     >
       <div class="manual-classification-content">
         <div class="current-word-section">
-          <h4>当前单词</h4>
+          <h4>{{ t('home.currentWord') }}</h4>
           <div v-if="currentWordData" class="current-word-card">
             <span class="word-name">{{ currentWordData.english }}</span>
             <el-tag size="small" type="info">{{ currentWordData.part_of_speech }}</el-tag>
@@ -247,7 +247,7 @@
         </div>
 
         <div class="relations-section">
-          <h4>当前分类关系</h4>
+          <h4>{{ t('home.currentRelations') }}</h4>
           <div v-if="currentWordData && currentWordData.children && currentWordData.children.length > 0">
             <el-tree
               :data="currentWordData.children"
@@ -265,30 +265,30 @@
                     text 
                     @click="removeRelation(data.relationId)"
                   >
-                    删除
+                    {{ t('common.delete') }}
                   </el-button>
                 </div>
               </template>
             </el-tree>
           </div>
           <div v-else class="empty-state">
-            暂无分类关系
+            {{ t('home.noRelations') }}
           </div>
         </div>
 
         <div class="add-section">
-          <h4>添加到根词</h4>
+          <h4>{{ t('home.addToRoot') }}</h4>
           <div class="relation-type-selector">
-            <span class="type-label">关系类型：</span>
+            <span class="type-label">{{ t('home.relationType') }}</span>
             <el-radio-group v-model="selectedRelationType" size="small">
-              <el-radio value="derivative">衍生词</el-radio>
-              <el-radio value="phrase">短语</el-radio>
+              <el-radio :label="t('home.derivative')" value="derivative"></el-radio>
+              <el-radio :label="t('home.phrase')" value="phrase"></el-radio>
             </el-radio-group>
           </div>
           <div class="search-box">
             <el-input 
               v-model="manualSearchText" 
-              placeholder="搜索根词"
+              :placeholder="t('home.searchRootWord')"
               @input="() => {}"
             >
               <template #prefix>
@@ -322,7 +322,7 @@
     <!-- 上传对话框 -->
     <el-dialog
       v-model="uploadDialogVisible"
-      title="导入单词"
+      :title="t('home.importWords')"
       width="520px"
       class="upload-dialog"
     >
@@ -340,11 +340,11 @@
             <el-icon :size="48"><DocumentAdd /></el-icon>
           </div>
           <div class="upload-text">
-            拖拽 PDF 文件到此处或 <em>点击上传</em>
+            {{ t('home.dragOrClickUpload') }} <em>{{ t('home.clickUpload') }}</em>
           </div>
           <template #tip>
             <div class="upload-tip">
-              支持 PDF 文件，将解析表格中的单词数据
+              {{ t('home.supportPdfHint') }}
             </div>
           </template>
         </el-upload>
@@ -360,10 +360,10 @@
 
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="uploadDialogVisible = false">取消</el-button>
+          <el-button @click="uploadDialogVisible = false">{{ t('common.cancel') }}</el-button>
           <el-button type="primary" @click="handleImport" :loading="importing">
             <el-icon style="margin-right: 6px;"><Upload /></el-icon>
-            开始导入
+            {{ t('home.importWords') }}
           </el-button>
         </div>
       </template>
@@ -372,13 +372,13 @@
     <!-- 导入日志对话框 -->
     <el-dialog
       v-model="importLogsVisible"
-      title="导入日志"
+      :title="t('home.importLogs')"
       width="800px"
       class="import-logs-dialog"
     >
       <div v-if="loadingImportLogs" style="text-align: center; padding: 40px;">
         <el-icon class="is-loading" :size="32"><Loading /></el-icon>
-        <p>加载中...</p>
+        <p>{{ t('common.loading') }}</p>
       </div>
       <div v-else>
         <div class="import-stats">
@@ -386,7 +386,7 @@
             <el-col :span="12">
               <el-card shadow="hover">
                 <template #header>
-                  <span>最近导入记录</span>
+                  <span>{{ t('home.recentImports') }}</span>
                 </template>
                 <div v-if="importStats.length > 0">
                   <div v-for="item in importStats" :key="item.id" class="import-item">
@@ -396,25 +396,25 @@
                     </div>
                     <div class="import-item-stats">
                       <el-tag v-if="item.error_count > 0" type="danger" size="small">
-                        错误 {{ item.error_count }} 条
+                        {{ t('home.errorDetails') }} {{ item.error_count }} {{ t('home.indexNumber') }}
                       </el-tag>
-                      <el-tag v-else type="success" size="small">无错误</el-tag>
+                      <el-tag v-else type="success" size="small">{{ t('home.noErrors') }}</el-tag>
                     </div>
                   </div>
                 </div>
-                <div v-else class="empty-text">暂无导入记录</div>
+                <div v-else class="empty-text">{{ t('home.noImportRecords') }}</div>
               </el-card>
             </el-col>
             <el-col :span="12">
               <el-card shadow="hover">
                 <template #header>
-                  <span>错误详情</span>
+                  <span>{{ t('home.errorDetails') }}</span>
                 </template>
                 <div v-if="importErrors.length > 0" class="error-list">
                   <el-scrollbar height="300px">
                     <div v-for="error in importErrors" :key="error.id" class="error-item">
                       <div class="error-header">
-                        <el-tag type="warning" size="small">序号 {{ error.index_number }}</el-tag>
+                        <el-tag type="warning" size="small">{{ t('home.indexNumber') }} {{ error.index_number }}</el-tag>
                         <span v-if="error.english" class="error-english">{{ error.english }}</span>
                         <span class="error-time">{{ formatTime(error.created_at) }}</span>
                       </div>
@@ -422,7 +422,7 @@
                     </div>
                   </el-scrollbar>
                 </div>
-                <div v-else class="empty-text">暂无错误</div>
+                <div v-else class="empty-text">{{ t('home.noErrors') }}</div>
               </el-card>
             </el-col>
           </el-row>
@@ -431,10 +431,10 @@
 
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="importLogsVisible = false">关闭</el-button>
+          <el-button @click="importLogsVisible = false">{{ t('common.close') }}</el-button>
           <el-button type="primary" @click="loadImportLogs">
             <el-icon style="margin-right: 6px;"><Refresh /></el-icon>
-            刷新
+            {{ t('common.refresh') }}
           </el-button>
         </div>
       </template>
@@ -528,17 +528,17 @@ const handleSelectionChange = (selection: any[]) => {
 
 const batchDeleteSelected = async () => {
   if (selectedWords.value.length === 0) {
-    ElMessage.warning('请先选择要删除的单词')
+    ElMessage.warning(t('home.selectWordFirst'))
     return
   }
   
   try {
     await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedWords.value.length} 个单词吗？`,
-      '批量删除确认',
+      t('home.confirmBatchDelete', { count: selectedWords.value.length }),
+      t('home.batchDeleteTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     )
@@ -546,12 +546,12 @@ const batchDeleteSelected = async () => {
     loading.value = true
     const wordIds = selectedWords.value.map(w => w.id)
     await wordApi.batchDeleteWords(wordIds)
-    ElMessage.success(`成功删除 ${wordIds.length} 个单词`)
+    ElMessage.success(t('home.batchDeleteSuccess', { count: wordIds.length }))
     selectedWords.value = []
     await loadWords()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('批量删除失败')
+      ElMessage.error(t('home.batchDeleteFailed'))
     }
   } finally {
     loading.value = false
@@ -574,7 +574,7 @@ const loadWords = async () => {
     total.value = res.data.total
     words.value = res.data.words.map((w: any) => ({ ...w }))
   } catch (error) {
-    ElMessage.error('加载数据失败')
+    ElMessage.error(t('home.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -590,7 +590,7 @@ const handleFileChange = (file: any) => {
   
   if (file.size > 1024 * 1024) {
     ElMessage.warning({
-      message: '文件较大，解析和导入可能需要一些时间，请耐心等待...',
+      message: t('home.fileLargeWarning'),
       duration: 5000
     })
   }
@@ -606,23 +606,23 @@ const formatFileSize = (bytes: number): string => {
 
 const handleImport = async () => {
   if (!selectedFile.value) {
-    ElMessage.warning('请先选择文件')
+    ElMessage.warning(t('home.selectFileFirst'))
     return
   }
   
   if (selectedFile.value.size > 1024 * 1024) {
-    ElMessage.info('正在解析文件，请稍候...')
+    ElMessage.info(t('home.parsingFile'))
   }
   
   importing.value = true
   try {
     const res = await wordApi.importFile(selectedFile.value)
-    ElMessage.success(`成功导入 ${res.data.count} 个单词`)
+    ElMessage.success(t('home.importSuccess', { count: res.data.count }))
     uploadDialogVisible.value = false
     currentPage.value = 1
     loadWords()
   } catch (error) {
-    ElMessage.error('导入失败，请检查文件格式是否正确')
+    ElMessage.error(t('home.importFailed'))
   } finally {
     importing.value = false
   }
@@ -671,10 +671,10 @@ const reclassifyWords = async () => {
   try {
     classifying.value = true
     const res = await wordApi.classifyAll(false)
-    ElMessage.success(`成功分类 ${res.data.classified} 个单词`)
+    ElMessage.success(t('home.classifySuccess', { count: res.data.classified }))
     await loadWords()
   } catch (error) {
-    ElMessage.error('分类失败')
+    ElMessage.error(t('home.classifyFailed'))
   } finally {
     classifying.value = false
     loading.value = false
@@ -685,10 +685,10 @@ const resetWordClassification = async (wordId: number) => {
   loading.value = true
   try {
     await wordApi.resetWordClassification(wordId)
-    ElMessage.success('重置分类成功')
+    ElMessage.success(t('home.resetSuccess'))
     await loadWords()
   } catch (error) {
-    ElMessage.error('重置分类失败')
+    ElMessage.error(t('home.resetFailed'))
   } finally {
     loading.value = false
   }
@@ -697,21 +697,21 @@ const resetWordClassification = async (wordId: number) => {
 const deleteWord = async (row: any) => {
   try {
     await ElMessageBox.confirm(
-      `确定要删除单词 "${row.english}" 吗？`,
-      '删除确认',
+      t('home.deleteWordConfirm', { word: row.english }),
+      t('home.deleteTitle'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     )
     loading.value = true
     await wordApi.deleteWord(row.id)
-    ElMessage.success('删除成功')
+    ElMessage.success(t('home.deleteSuccess'))
     await loadWords()
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+      ElMessage.error(t('home.deleteFailed'))
     }
   } finally {
     loading.value = false
@@ -732,7 +732,7 @@ const loadCurrentWordData = async (wordId: number) => {
     const allWordsRes = await wordApi.getWords(1, 10000)
     availableWords.value = allWordsRes.data.words.filter(w => w.id !== wordId)
   } catch (error) {
-    ElMessage.error('加载数据失败')
+    ElMessage.error(t('home.loadFailed'))
   }
 }
 
@@ -752,22 +752,22 @@ const findWordInTree = (tree: any[], wordId: number): any => {
 const addRelation = async (childWordId: number) => {
   try {
     await wordApi.addRelation(currentWordId.value, childWordId, selectedRelationType.value)
-    ElMessage.success('添加成功')
+    ElMessage.success(t('home.addSuccess'))
     await loadCurrentWordData(currentWordId.value)
     loadWords()
   } catch (error) {
-    ElMessage.error('添加失败')
+    ElMessage.error(t('home.addFailed'))
   }
 }
 
 const removeRelation = async (relationId: number) => {
   try {
     await wordApi.deleteRelation(relationId)
-    ElMessage.success('移除成功')
+    ElMessage.success(t('home.removeSuccess'))
     await loadCurrentWordData(currentWordId.value)
     loadWords()
   } catch (error) {
-    ElMessage.error('移除失败')
+    ElMessage.error(t('home.removeFailed'))
   }
 }
 
@@ -890,7 +890,7 @@ const startPracticeFromWord = async (wordId: number) => {
     })
   } catch (error) {
     console.error('开始练习失败:', error)
-    ElMessage.error('无法开始练习')
+    ElMessage.error(t('home.startPracticeFailed'))
   }
 }
 
@@ -903,17 +903,17 @@ const startAddNew = () => {
 // 保存新单词
 const saveNewWord = async () => {
   if (!newWord.value.english || !newWord.value.chinese) {
-    ElMessage.warning('请填写英文和中文')
+    ElMessage.warning(t('home.fillEnglishChinese'))
     return
   }
   try {
     await wordApi.addWord(newWord.value)
-    ElMessage.success('添加成功')
+    ElMessage.success(t('home.addWordSuccess'))
     addingNew.value = false
     newWord.value = { english: '', part_of_speech: '', chinese: '' }
     await loadWords()
   } catch (error) {
-    ElMessage.error('添加失败')
+    ElMessage.error(t('home.addWordFailed'))
   }
 }
 

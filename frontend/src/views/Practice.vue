@@ -6,21 +6,21 @@
         <div class="icon-wrapper">
           <el-icon class="practice-icon"><EditPen /></el-icon>
         </div>
-        <h2>随手拼练习</h2>
-        <p>根据中文提示拼写英文单词，提升记忆效果</p>
+        <h2>{{ t('practice.title') }}</h2>
+        <p>{{ t('practice.description') }}</p>
         <div class="start-buttons">
           <el-button type="primary" size="large" @click="startPractice" class="start-btn">
             <el-icon style="margin-right: 8px;"><CaretRight /></el-icon>
-            开始练习
+            {{ t('practice.start') }}
           </el-button>
           <el-button size="large" @click="clearProgress" class="clear-btn">
             <el-icon style="margin-right: 8px;"><Delete /></el-icon>
-            清除进度
+            {{ t('practice.clearProgress') }}
           </el-button>
         </div>
         <div v-if="savedIndex > 0" class="progress-hint">
           <el-icon><Timer /></el-icon>
-          <span>上次练习到第 {{ savedIndex + 1 }} 个单词</span>
+          <span>{{ t('practice.lastProgress') }} {{ savedIndex + 1 }} {{ t('practice.word') }}</span>
         </div>
       </div>
     </el-card>
@@ -30,14 +30,14 @@
       <!-- 加载状态 -->
       <div v-if="loading" class="loading-container">
         <el-icon class="loading-icon is-loading" :size="40"><Loading /></el-icon>
-        <p>加载中...</p>
+        <p>{{ t('practice.loadingWords') }}</p>
       </div>
 
       <!-- 练习内容 -->
       <template v-else>
         <div class="progress-bar">
           <div class="progress-info">
-            <span class="progress-text">进度</span>
+            <span class="progress-text">{{ t('practice.progress') }}</span>
             <span class="progress-count">{{ getProgressText() }}</span>
           </div>
           <el-progress 
@@ -49,25 +49,25 @@
           <div class="progress-actions">
             <el-button @click="saveProgress" size="small" text>
               <el-icon><FolderChecked /></el-icon>
-              保存进度
+              {{ t('practice.saveProgress') }}
             </el-button>
             <el-button @click="clearProgress" size="small" text>
               <el-icon><Delete /></el-icon>
-              清除进度
+              {{ t('practice.clearProgress') }}
             </el-button>
             <el-button @click="goBack" size="small" text :disabled="isGoBackDisabled">
               <el-icon><DArrowLeft /></el-icon>
-              上一个
+              {{ t('practice.prevWord') }}
             </el-button>
             <el-button @click="goHome" size="small" text class="go-home-btn">
               <el-icon><HomeFilled /></el-icon>
-              返回首页
+              {{ t('practice.backToList') }}
             </el-button>
           </div>
         </div>
 
         <div v-if="currentWord" class="word-display">
-          <div class="word-label">中文释义</div>
+          <div class="word-label">{{ t('practice.chineseMeaning') }}</div>
           <h3 class="chinese">{{ currentWord.chinese }}</h3>
           <el-tag size="small" type="info" class="pos-tag">{{ currentWord.part_of_speech }}</el-tag>
         </div>
@@ -76,7 +76,7 @@
           <el-form-item>
             <el-input
               v-model="userAnswer"
-              placeholder="请输入英文单词..."
+              :placeholder="t('practice.enterWord')"
               size="large"
               ref="inputRef"
               @keyup.enter="checkAnswer"
@@ -90,15 +90,15 @@
           <el-form-item class="btn-group">
             <el-button type="primary" size="large" @click="checkAnswer" :loading="checking">
               <el-icon style="margin-right: 6px;"><Check /></el-icon>
-              提交
+              {{ t('practice.submit') }}
             </el-button>
             <el-button size="large" @click="showAnswer">
               <el-icon><View /></el-icon>
-              显示答案
+              {{ t('practice.showAnswer') }}
             </el-button>
             <el-button size="large" @click="skipWord">
               <el-icon><ArrowRight /></el-icon>
-              跳过
+              {{ t('practice.skip') }}
             </el-button>
           </el-form-item>
         </el-form>
@@ -109,15 +109,15 @@
               <el-icon v-if="isCorrect" :size="48"><CircleCheckFilled /></el-icon>
               <el-icon v-else :size="48"><CircleCloseFilled /></el-icon>
             </div>
-            <span class="result-text">{{ isCorrect ? '回答正确！' : '回答错误' }}</span>
-            <p v-if="!isCorrect" class="correct-answer">正确答案: <strong>{{ currentWord?.english }}</strong></p>
+            <span class="result-text">{{ isCorrect ? t('practice.correct') : t('practice.incorrect') }}</span>
+            <p v-if="!isCorrect" class="correct-answer">{{ t('practice.correctAnswer') }}: <strong>{{ currentWord?.english }}</strong></p>
             <el-button v-if="!isCorrect" type="primary" @click="tryAgain" class="result-btn">
               <el-icon style="margin-right: 6px;"><RefreshRight /></el-icon>
-              再试一次
+              {{ t('practice.tryAgain') }}
             </el-button>
             <el-button v-else type="success" @click="nextWord" class="result-btn">
               <el-icon style="margin-right: 6px;"><ArrowRight /></el-icon>
-              下一个
+              {{ t('practice.nextWord') }}
             </el-button>
           </div>
         </transition>
@@ -285,14 +285,14 @@ const autoSaveProgress = async () => {
 const clearProgress = async () => {
   try {
     const message = fromIndex.value !== null 
-      ? '确定要清除练习进度吗？将回到当前练习的起始单词。'
-      : '确定要清除练习进度吗？下次将从第一个单词开始练习。'
+      ? t('practice.clearProgressConfirmFromTable')
+      : t('practice.clearProgressConfirm')
     await ElMessageBox.confirm(
       message,
-      '清除进度',
+      t('practice.clearProgress'),
       {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       }
     )
@@ -326,10 +326,10 @@ const clearProgress = async () => {
     
     showResult.value = false
     showCurrentWord()
-    ElMessage.success('进度已清除')
+    ElMessage.success(t('practice.progressCleared'))
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('清除失败')
+      ElMessage.error(t('practice.clearFailed'))
     }
   }
 }
@@ -405,7 +405,7 @@ const startPractice = async () => {
     if (savedIndex.value > 0 || savedCorrectCount.value > 0 || savedSkipCount.value > 0) {
       const completed = savedCorrectCount.value
       const skipped = savedSkipCount.value
-      ElMessage.info(`上次练习已完成${completed}个，跳过${skipped}个，现在从第${savedIndex.value + 1}个词继续`)
+      ElMessage.info(t('practice.resumeProgress', { completed, skipped, index: savedIndex.value + 1 }))
     }
   }
   
@@ -427,7 +427,7 @@ const showCurrentWord = () => {
 const checkAnswer = async () => {
   if (!currentWord.value) return
   if (!userAnswer.value.trim()) {
-    ElMessage.warning('请输入答案')
+    ElMessage.warning(t('practice.enterAnswer'))
     return
   }
   checking.value = true
@@ -443,7 +443,7 @@ const checkAnswer = async () => {
 
 const showAnswer = () => {
   if (currentWord.value) {
-    ElMessage.info(`答案: ${currentWord.value.english}`)
+    ElMessage.info(t('practice.answer') + ': ' + currentWord.value.english)
   }
 }
 

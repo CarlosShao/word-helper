@@ -52,68 +52,6 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.post('/forgot-password', async (req, res) => {
-  try {
-    const { email } = req.body;
-    
-    if (!email) {
-      return res.status(400).json({ success: false, message: '请填写邮箱' });
-    }
-    
-    const user = await get('SELECT id, username FROM users WHERE email = $1', [email]);
-    
-    if (!user) {
-      return res.status(404).json({ success: false, message: '该邮箱未注册' });
-    }
-    
-    const token = generateToken();
-    const expiresAt = new Date(Date.now() + 1 * 60 * 60 * 1000);
-    
-    await run('INSERT INTO password_resets (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, token, expiresAt]);
-    
-    console.log('[DEBUG-FORGOT-PASSWORD] Reset token generated for user:', user.id);
-    
-    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
-    
-    res.json({ 
-      success: true, 
-      message: '密码重置链接已发送到您的邮箱',
-      resetLink 
-    });
-  } catch (error) {
-    console.error('Forgot password error:', error);
-    res.status(500).json({ success: false, message: '发送失败' });
-  }
-});
-
-router.post('/reset-password', async (req, res) => {
-  try {
-    const { token, password } = req.body;
-    
-    if (!token || !password) {
-      return res.status(400).json({ success: false, message: '参数错误' });
-    }
-    
-    const reset = await get('SELECT user_id FROM password_resets WHERE token = $1 AND expires_at > NOW()', [token]);
-    
-    if (!reset) {
-      return res.status(401).json({ success: false, message: '链接已过期或无效' });
-    }
-    
-    const hashedPassword = hashPassword(password);
-    
-    await run('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, reset.user_id]);
-    await run('DELETE FROM password_resets WHERE token = $1', [token]);
-    
-    console.log('[DEBUG-RESET-PASSWORD] Password reset for user:', reset.user_id);
-    
-    res.json({ success: true, message: '密码重置成功' });
-  } catch (error) {
-    console.error('Reset password error:', error);
-    res.status(500).json({ success: false, message: '重置失败' });
-  }
-});
-
 router.post('/register', async (req, res) => {
   try {
     const { username, email, password } = req.body;

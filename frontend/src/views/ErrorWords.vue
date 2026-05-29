@@ -5,47 +5,47 @@
         <div class="card-header">
           <div class="header-left">
             <el-icon class="header-icon"><Warning /></el-icon>
-            <span>错题集</span>
-            <el-tag type="danger" size="small" style="margin-left: 12px;">{{ words.length }} 题</el-tag>
+            <span>{{ t('errorWords.title') }}</span>
+            <el-tag type="danger" size="small" style="margin-left: 12px;">{{ words.length }} {{ t('errorWords.item') }}</el-tag>
           </div>
           <el-button type="primary" @click="startPractice">
             <el-icon style="margin-right: 6px;"><Edit /></el-icon>
-            开始练习错题
+            {{ t('errorWords.practiceErrors') }}
           </el-button>
         </div>
       </template>
 
       <el-table :data="words" style="width: 100%" v-loading="loading" stripe>
-        <el-table-column type="index" label="序号" width="70" align="center" />
-        <el-table-column label="英文" min-width="180">
+        <el-table-column type="index" :label="t('home.serialNumber')" width="70" align="center" />
+        <el-table-column :label="t('home.english')" min-width="180">
           <template #default="{ row }">
             <span class="word-text">{{ row.english }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="词性" width="100" align="center">
+        <el-table-column :label="t('home.partOfSpeech')" width="100" align="center">
           <template #default="{ row }">
             <el-tag size="small" type="info">{{ row.part_of_speech }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="中文" min-width="200">
+        <el-table-column :label="t('home.chinese')" min-width="200">
           <template #default="{ row }">{{ row.chinese }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="120" align="center">
+        <el-table-column :label="t('home.actions')" width="120" align="center">
           <template #default="{ row }">
             <el-button size="small" type="success" @click="removeFromErrorWords(row.id)">
               <el-icon><CircleCheck /></el-icon>
-              已掌握
+              {{ t('errorWords.markAsKnown') }}
             </el-button>
           </template>
         </el-table-column>
       </el-table>
 
-      <el-empty v-if="words.length === 0 && !loading" description="暂无错题，继续加油！">
-        <el-button type="primary" @click="$router.push('/')">去练习</el-button>
+      <el-empty v-if="words.length === 0 && !loading" :description="t('errorWords.noErrorWords')">
+        <el-button type="primary" @click="$router.push('/')">{{ t('errorWords.goPractice') }}</el-button>
       </el-empty>
     </el-card>
 
-    <el-dialog v-model="practiceDialogVisible" title="错题练习" width="500px" class="practice-dialog">
+    <el-dialog v-model="practiceDialogVisible" :title="t('errorWords.practiceErrors')" width="500px" class="practice-dialog">
       <div v-if="practiceWords.length > 0 && currentPracticeWord" class="practice-content">
         <div class="progress">
           <el-progress 
@@ -56,13 +56,13 @@
           <span class="progress-text">{{ practiceIndex + 1 }} / {{ practiceWords.length }}</span>
         </div>
         <div class="word-display">
-          <div class="word-label">中文释义</div>
+          <div class="word-label">{{ t('practice.chineseMeaning') }}</div>
           <h3 class="chinese">{{ currentPracticeWord.chinese }}</h3>
           <el-tag size="small" type="info">{{ currentPracticeWord.part_of_speech }}</el-tag>
         </div>
         <el-input
           v-model="practiceAnswer"
-          placeholder="请输入英文单词..."
+          :placeholder="t('practice.enterWord')"
           size="large"
           @keyup.enter="checkPracticeAnswer"
           class="practice-input"
@@ -74,11 +74,11 @@
         <div class="practice-btns">
           <el-button type="primary" @click="checkPracticeAnswer">
             <el-icon style="margin-right: 6px;"><Check /></el-icon>
-            提交
+            {{ t('practice.submit') }}
           </el-button>
           <el-button @click="showPracticeAnswer">
             <el-icon><View /></el-icon>
-            显示答案
+            {{ t('practice.showAnswer') }}
           </el-button>
         </div>
         <transition name="fade">
@@ -87,19 +87,19 @@
               <el-icon v-if="practiceIsCorrect" :size="36"><CircleCheckFilled /></el-icon>
               <el-icon v-else :size="36"><CircleCloseFilled /></el-icon>
             </div>
-            <span class="result-text">{{ practiceIsCorrect ? '回答正确！' : '回答错误' }}</span>
-            <p v-if="!practiceIsCorrect" class="correct-answer">正确答案: <strong>{{ currentPracticeWord.english }}</strong></p>
+            <span class="result-text">{{ practiceIsCorrect ? t('practice.correct') : t('practice.incorrect') }}</span>
+            <p v-if="!practiceIsCorrect" class="correct-answer">{{ t('practice.correctAnswer') }}: <strong>{{ currentPracticeWord.english }}</strong></p>
             <div v-if="practiceIsCorrect" style="margin-top: 16px;">
               <el-button type="success" @click="nextPracticeWord">
                 <el-icon style="margin-right: 6px;"><Right /></el-icon>
-                下一个
+                {{ t('practice.nextWord') }}
               </el-button>
             </div>
           </div>
         </transition>
       </div>
       <div v-else class="practice-content">
-        <el-empty description="练习完成！" />
+        <el-empty :description="t('practice.complete')" />
       </div>
     </el-dialog>
   </div>
@@ -107,12 +107,15 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { 
   Warning, Edit, CircleCheck, Check, View, Right, 
   CircleCheckFilled, CircleCloseFilled 
 } from '@element-plus/icons-vue'
 import { wordApi, type Word } from '../api'
+
+const { t } = useI18n()
 
 const words = ref<Word[]>([])
 const loading = ref(false)
@@ -130,7 +133,7 @@ const loadErrorWords = async () => {
     const res = await wordApi.getErrorWords()
     words.value = res.data.words
   } catch (error) {
-    ElMessage.error('加载错题失败')
+    ElMessage.error(t('errorWords.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -139,16 +142,16 @@ const loadErrorWords = async () => {
 const removeFromErrorWords = async (wordId: number) => {
   try {
     await wordApi.removeErrorWord(wordId)
-    ElMessage.success('已移至观察室')
+    ElMessage.success(t('errorWords.markSuccess'))
     loadErrorWords()
   } catch (error) {
-    ElMessage.error('操作失败')
+    ElMessage.error(t('errorWords.operationFailed'))
   }
 }
 
 const startPractice = () => {
   if (words.value.length === 0) {
-    ElMessage.warning('暂无错题')
+    ElMessage.warning(t('errorWords.noErrorWords'))
     return
   }
   practiceWords.value = [...words.value]
@@ -161,7 +164,7 @@ const startPractice = () => {
 
 const checkPracticeAnswer = async () => {
   if (!practiceAnswer.value.trim()) {
-    ElMessage.warning('请输入答案')
+    ElMessage.warning(t('practice.enterAnswer'))
     return
   }
   
@@ -169,16 +172,14 @@ const checkPracticeAnswer = async () => {
   practiceResult.value = true
 
   if (practiceIsCorrect.value) {
-    // 答对了，从错题集移除，加入观察室
     await wordApi.removeErrorWord(currentPracticeWord.value!.id)
   } else {
-    // 答错了，保持在错题集
     await wordApi.addErrorWord(currentPracticeWord.value!.id)
   }
 }
 
 const showPracticeAnswer = () => {
-  ElMessage.info(`答案: ${currentPracticeWord.value?.english}`)
+  ElMessage.info(t('practice.answer') + ': ' + currentPracticeWord.value?.english)
 }
 
 const nextPracticeWord = () => {

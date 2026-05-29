@@ -165,7 +165,10 @@
         
         <el-form-item class="agree-terms">
           <el-checkbox v-model="registerForm.agree">
-            {{ t('auth.agreeTerms') }}
+            {{ t('auth.agreeTermsPrefix') }}
+            <a href="#" class="terms-link" @click.prevent="showTermsModal = true">{{ t('auth.termsOfService') }}</a>
+            {{ t('auth.and') }}
+            <a href="#" class="terms-link" @click.prevent="showPrivacyModal = true">{{ t('auth.privacyPolicy') }}</a>
           </el-checkbox>
         </el-form-item>
         
@@ -208,6 +211,34 @@
           {{ isLoginMode ? t('auth.register') : t('auth.login') }}
         </button>
       </div>
+
+      <el-dialog 
+        v-model="showTermsModal" 
+        :title="t('auth.termsOfService')" 
+        width="600px"
+        :close-on-click-modal="false"
+      >
+        <div class="terms-content">
+          <h3>{{ t('auth.termsTitle') }}</h3>
+          <p>{{ t('auth.termsContent1') }}</p>
+          <p>{{ t('auth.termsContent2') }}</p>
+          <p>{{ t('auth.termsContent3') }}</p>
+        </div>
+      </el-dialog>
+
+      <el-dialog 
+        v-model="showPrivacyModal" 
+        :title="t('auth.privacyPolicy')" 
+        width="600px"
+        :close-on-click-modal="false"
+      >
+        <div class="terms-content">
+          <h3>{{ t('auth.privacyTitle') }}</h3>
+          <p>{{ t('auth.privacyContent1') }}</p>
+          <p>{{ t('auth.privacyContent2') }}</p>
+          <p>{{ t('auth.privacyContent3') }}</p>
+        </div>
+      </el-dialog>
     </div>
   </div>
 </template>
@@ -232,7 +263,9 @@ const isLoginMode = ref(true)
 const captchaUrl = ref('/api/captcha?' + Date.now())
 const captchaUuid = ref('')
 const passwordStrength = ref(0)
-const { login, updateAuthState } = useAuth()
+const showTermsModal = ref(false)
+const showPrivacyModal = ref(false)
+const { login, updateAuthState, saveLoginCredentials } = useAuth()
 
 const loginForm = reactive({
   username: '',
@@ -352,6 +385,19 @@ const checkPasswordStrength = (event: any) => {
 onMounted(() => {
   updateAuthState()
   refreshCaptcha()
+  
+  const savedRemember = localStorage.getItem('rememberMe')
+  if (savedRemember === 'true') {
+    const savedUsername = localStorage.getItem('savedUsername')
+    const savedPassword = localStorage.getItem('savedPassword')
+    if (savedUsername) {
+      loginForm.username = savedUsername
+    }
+    if (savedPassword) {
+      loginForm.password = savedPassword
+    }
+    loginForm.remember = true
+  }
 })
 
 const toggleMode = () => {
@@ -412,6 +458,9 @@ const handleLogin = async () => {
         
         if (data.success) {
           login(data.token, data.username, loginForm.remember)
+          if (loginForm.remember) {
+            saveLoginCredentials(loginForm.username, loginForm.password)
+          }
           ElMessage.success(t('auth.loginSuccess'))
           router.push('/')
         } else {
@@ -694,6 +743,27 @@ const handleGitHubLogin = async () => {
 .agree-terms :deep(.el-checkbox__label) {
   font-size: 13px;
   color: #909399;
+}
+
+.terms-link {
+  color: #667eea;
+  text-decoration: none;
+  margin: 0 4px;
+}
+
+.terms-link:hover {
+  text-decoration: underline;
+}
+
+.terms-content {
+  line-height: 1.8;
+  color: #606266;
+}
+
+.terms-content h3 {
+  margin-bottom: 16px;
+  color: #303133;
+  font-size: 16px;
 }
 
 .login-btn {

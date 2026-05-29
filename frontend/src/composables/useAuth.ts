@@ -60,11 +60,25 @@ export function useAuth() {
     }
   }
 
-  const login = (token: string, name: string) => {
-    console.log('[DEBUG-AUTH] login() called with token:', token.substring(0, 30) + '...', 'name:', name);
+  const login = (token: string, name: string, remember: boolean = false) => {
+    console.log('[DEBUG-AUTH] login() called with token:', token.substring(0, 30) + '...', 'name:', name, 'remember:', remember);
     localStorage.setItem('token', token)
     localStorage.setItem('username', name)
+    
+    if (remember) {
+      localStorage.setItem('rememberMe', 'true')
+    } else {
+      localStorage.removeItem('rememberMe')
+      localStorage.removeItem('savedUsername')
+      localStorage.removeItem('savedPassword')
+    }
+    
     updateAuthState()
+  }
+  
+  const saveLoginCredentials = (username: string, password: string) => {
+    localStorage.setItem('savedUsername', username)
+    localStorage.setItem('savedPassword', password)
   }
 
   const logout = async () => {
@@ -101,6 +115,7 @@ export function useAuth() {
     updateAuthState,
     validateToken,
     login,
-    logout
+    logout,
+    saveLoginCredentials
   }
 }

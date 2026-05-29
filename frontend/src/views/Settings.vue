@@ -179,19 +179,21 @@
             </div>
           </div>
 
-          <el-table :data="partsOfSpeech" border style="width: 100%" :loading="loading">
-            <el-table-column prop="code" :label="t('settings.code')" width="120" />
-            <el-table-column prop="name" :label="t('settings.name')" width="150" />
-            <el-table-column prop="description" :label="t('settings.description')" min-width="200" />
-            <el-table-column prop="created_at" :label="t('settings.createdAt')" width="180" :formatter="formatCreatedTime" />
-            <el-table-column prop="updated_at" :label="t('settings.updatedAt')" width="180" :formatter="formatUpdatedTime" />
-            <el-table-column :label="t('settings.editPos')" width="160">
-              <template #default="scope">
-                <el-button size="small" @click="editItem(scope.row)">{{ t('common.edit') }}</el-button>
-                <el-button size="small" type="danger" @click="deleteItem(scope.row)">{{ t('common.delete') }}</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
+          <div class="pos-table-wrapper">
+            <el-table :data="partsOfSpeech" border :loading="loading" class="pos-table">
+              <el-table-column prop="code" :label="t('settings.code')" width="100" />
+              <el-table-column prop="name" :label="t('settings.name')" width="140" />
+              <el-table-column prop="description" :label="t('settings.description')" flex="1" />
+              <el-table-column prop="created_at" :label="t('settings.createdAt')" width="180" :formatter="formatCreatedTime" />
+              <el-table-column prop="updated_at" :label="t('settings.updatedAt')" width="180" :formatter="formatUpdatedTime" />
+              <el-table-column :label="t('settings.editPos')" width="140" align="center">
+                <template #default="scope">
+                  <el-button size="small" @click="editItem(scope.row)">{{ t('common.edit') }}</el-button>
+                  <el-button size="small" type="danger" @click="deleteItem(scope.row)">{{ t('common.delete') }}</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
         </div>
       </main>
     </div>
@@ -539,5 +541,59 @@ onMounted(() => {
 .pos-actions {
   display: flex;
   gap: 12px;
+}
+
+.pos-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.pos-table {
+  width: 100%;
+  min-width: 900px;
+}
+
+.pos-table :deep(.el-table__header) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.pos-table :deep(.el-table__header th) {
+  color: #fff;
+  font-weight: 600;
+  border-bottom: none;
+}
+
+.pos-table :deep(.el-table__header th:first-child) {
+  border-radius: 12px 0 0 0;
+}
+
+.pos-table :deep(.el-table__header th:last-child) {
+  border-radius: 0 12px 0 0;
+}
+
+.pos-table :deep(.el-table__body tr:hover) {
+  background-color: #f8f9fa;
+}
+
+.pos-table :deep(.el-table__body tr:last-child td:first-child) {
+  border-radius: 0 0 0 12px;
+}
+
+.pos-table :deep(.el-table__body tr:last-child td:last-child) {
+  border-radius: 0 0 12px 0;
+}
+
+@media (max-width: 768px) {
+  .pos-table {
+    min-width: 600px;
+  }
+  
+  .pos-table :deep(.el-table__header th),
+  .pos-table :deep(.el-table__body td) {
+    font-size: 13px;
+    padding: 10px 8px;
+  }
 }
 </style>

@@ -27,7 +27,10 @@ async function resolveIPv4(host: string): Promise<string> {
 }
 
 export async function createPool(): Promise<void> {
-  const databaseUrl = process.env.DATABASE_URL || 'postgres://postgres.gqtsxcypwgtczlugkqsb:!henji2168Carlos@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres';
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL environment variable is required');
+  }
   const url = new URL(databaseUrl);
   
   const host = url.hostname;

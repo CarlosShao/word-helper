@@ -275,6 +275,10 @@ async function startServer() {
   });
 
   app.get('/api/import-errors', async (req, res) => {
+    const userId = await extractUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
     const limit = parseInt(req.query.limit as string) || 50;
     const errors = await all(`
       SELECT 
@@ -283,23 +287,29 @@ async function startServer() {
         import_files.imported_at
       FROM import_error_logs 
       LEFT JOIN import_files ON import_error_logs.import_file_id = import_files.id
+      WHERE import_files.user_id = $1
       ORDER BY import_error_logs.created_at DESC
-      LIMIT $1
-    `, [limit]);
+      LIMIT $2
+    `, [userId, limit]);
     res.json({ success: true, errors });
   });
 
   app.get('/api/import-stats', async (req, res) => {
+    const userId = await extractUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
     const recentImports = await all(`
       SELECT 
         import_files.*,
         COUNT(import_error_logs.id) as error_count
       FROM import_files
       LEFT JOIN import_error_logs ON import_files.id = import_error_logs.import_file_id
+      WHERE import_files.user_id = $1
       GROUP BY import_files.id
       ORDER BY import_files.imported_at DESC
       LIMIT 10
-    `);
+    `, [userId]);
     res.json({ success: true, imports: recentImports });
   });
 
@@ -491,10 +501,10 @@ async function startServer() {
         return res.status(400).json({ success: false, message: '英文和中文不能为空' });
       }
       
-      await run('INSERT INTO words (user_id, english, part_of_speech, chinese, is_classified) VALUES ($1, $2, $3, $4, 0)',
+      const result = await run('INSERT INTO words (user_id, english, part_of_speech, chinese, is_classified) VALUES ($1, $2, $3, $4, 0) RETURNING *',
           [userId, english, part_of_speech || '', chinese]);
       
-      const newWord = await get('SELECT * FROM words ORDER BY id DESC LIMIT 1');
+      const newWord = result.rows[0];
       
       res.json({ success: true, word: newWord });
     } catch (error) {

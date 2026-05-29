@@ -27,9 +27,12 @@ services:
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://admin:password123@db:5432/wordhelper
       PGSSLMODE: disable
+      NODE_ENV: production
     depends_on:
       db:
         condition: service_healthy

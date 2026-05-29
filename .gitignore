@@ -20,10 +20,10 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# Environment variables
-.env
-.env.local
-.env.*.local
+# Environment variables (no longer ignored, per user request)
+# .env
+# .env.local
+# .env.*.local
 
 # Uploads directory (contains user uploaded files)
 backend/uploads/

@@ -30,9 +30,9 @@
         <el-table-column :label="t('home.chinese')" min-width="200">
           <template #default="{ row }">{{ row.chinese }}</template>
         </el-table-column>
-        <el-table-column :label="t('home.actions')" width="120" align="center">
+        <el-table-column :label="t('home.actions')" width="160" align="center">
           <template #default="{ row }">
-            <el-button size="small" type="success" @click="removeFromErrorWords(row.id)">
+            <el-button size="small" type="success" @click="removeFromErrorWords(row.id)" class="action-btn">
               <el-icon><CircleCheck /></el-icon>
               {{ t('errorWords.markAsKnown') }}
             </el-button>
@@ -227,6 +227,13 @@ onMounted(() => {
 .word-text {
   font-weight: 500;
   color: #303133;
+}
+
+.action-btn {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .practice-content {

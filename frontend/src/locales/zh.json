@@ -241,7 +241,7 @@
     "submit": "提交",
     "tryAgain": "再试一次",
     "progress": "进度",
-    "saveProgress": "自动保存进度中...",
+    "saveProgress": "保存进度",
     "clearProgressConfirm": "确定要清除练习进度吗？下次将从第一个单词开始练习。",
     "clearProgressConfirmFromTable": "确定要清除练习进度吗？将回到当前练习的起始单词。",
     "progressCleared": "进度已清除",

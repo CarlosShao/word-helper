@@ -180,12 +180,12 @@
           </div>
 
           <el-table :data="partsOfSpeech" border style="width: 100%" :loading="loading">
-            <el-table-column :prop="t('settings.code')" :label="t('settings.code')" width="120" />
-            <el-table-column :prop="t('settings.name')" :label="t('settings.name')" width="150" />
-            <el-table-column :prop="t('settings.description')" :label="t('settings.description')" />
-            <el-table-column :prop="t('settings.createdAt')" :label="t('settings.createdAt')" width="180" :formatter="formatTime" />
-            <el-table-column :prop="t('settings.updatedAt')" :label="t('settings.updatedAt')" width="180" :formatter="formatTime" />
-            <el-table-column :label="t('settings.editPos')" width="150">
+            <el-table-column prop="code" :label="t('settings.code')" width="120" />
+            <el-table-column prop="name" :label="t('settings.name')" width="150" />
+            <el-table-column prop="description" :label="t('settings.description')" min-width="200" />
+            <el-table-column prop="created_at" :label="t('settings.createdAt')" width="180" :formatter="formatCreatedTime" />
+            <el-table-column prop="updated_at" :label="t('settings.updatedAt')" width="180" :formatter="formatUpdatedTime" />
+            <el-table-column :label="t('settings.editPos')" width="160">
               <template #default="scope">
                 <el-button size="small" @click="editItem(scope.row)">{{ t('common.edit') }}</el-button>
                 <el-button size="small" type="danger" @click="deleteItem(scope.row)">{{ t('common.delete') }}</el-button>
@@ -276,8 +276,12 @@ const loadData = async () => {
   loading.value = false
 }
 
-const formatTime = (row: PartOfSpeech) => {
+const formatCreatedTime = (row: PartOfSpeech) => {
   return row.created_at ? new Date(row.created_at).toLocaleString() : '-'
+}
+
+const formatUpdatedTime = (row: PartOfSpeech) => {
+  return row.updated_at ? new Date(row.updated_at).toLocaleString() : '-'
 }
 
 const editItem = (item: PartOfSpeech) => {

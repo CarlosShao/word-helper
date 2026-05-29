@@ -243,7 +243,7 @@
     "submit": "Submit",
     "tryAgain": "Try Again",
     "progress": "Progress",
-    "saveProgress": "Auto saving progress...",
+    "saveProgress": "Save progress",
     "clearProgressConfirm": "Are you sure you want to clear practice progress? Will start from the first word next time.",
     "clearProgressConfirmFromTable": "Are you sure you want to clear practice progress? Will return to the starting word of current practice.",
     "progressCleared": "Progress cleared",

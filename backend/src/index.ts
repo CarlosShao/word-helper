@@ -846,20 +846,18 @@ async function startServer() {
       return res.status(401).json({ error: '无效的token' });
     }
     
-    const lastSession = await get('SELECT * FROM practice_sessions WHERE user_id = $1 AND status = $2 ORDER BY id DESC LIMIT 1', [userId, 'completed']);
-    
-    if (!lastSession) {
-      return res.json({ words: [], sessionId: null });
-    }
+    const today = new Date();
+    const yesterdayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+    const yesterdayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     
     const words = await all(`
-      SELECT w.*, ew.error_date FROM words w
+      SELECT DISTINCT w.*, ew.error_date FROM words w
       JOIN error_words ew ON w.id = ew.word_id
-      WHERE w.user_id = $1 AND ew.error_date >= $2 AND ew.error_date <= $3
+      WHERE w.user_id = $1 AND ew.error_date >= $2 AND ew.error_date < $3
       ORDER BY ew.error_date DESC
-    `, [userId, lastSession.start_time, lastSession.end_time]);
+    `, [userId, yesterdayStart, yesterdayEnd]);
     
-    res.json({ words, sessionId: lastSession.id });
+    res.json({ words, sessionId: null });
   });
 
   app.post('/api/practice/start', async (req, res) => {

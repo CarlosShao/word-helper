@@ -8,6 +8,7 @@ import ErrorWords from './views/ErrorWords.vue'
 import YesterdayErrors from './views/YesterdayErrors.vue'
 import Settings from './views/Settings.vue'
 import { ElMessage } from 'element-plus'
+import { useAuth } from './composables/useAuth'
 
 const routes = [
   { path: '/login', component: Login },
@@ -55,6 +56,7 @@ router.beforeEach(async (to, from, next) => {
   
   const githubToken = to.query.github_token as string
   const username = to.query.username as string
+  const { updateAuthState } = useAuth()
 
   if (githubToken) {
     console.log('[DEBUG-ROUTER] GitHub token detected in URL!');
@@ -71,6 +73,7 @@ router.beforeEach(async (to, from, next) => {
     
     if (isValid) {
       console.log('[DEBUG-ROUTER] GitHub token validated successfully');
+      updateAuthState()
       next({ path: '/', query: {} })
     } else {
       console.log('[DEBUG-ROUTER] GitHub token validation failed');

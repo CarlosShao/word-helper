@@ -166,10 +166,17 @@ export async function initDb(): Promise<void> {
     console.log('[DB] Creating settings table...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE (user_id, key)
       )
     `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_settings_user ON settings(user_id)`);
 
     console.log('[DB] Creating practice_sessions table...');
     await pool.query(`
@@ -202,12 +209,16 @@ export async function initDb(): Promise<void> {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS classification_rules (
         id SERIAL PRIMARY KEY,
+        user_id INTEGER,
         suffix TEXT NOT NULL,
         description TEXT,
         priority INTEGER DEFAULT 0,
-        active INTEGER DEFAULT 1
+        active INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_rules_user ON classification_rules(user_id)`);
 
     console.log('[DB] Creating import_error_logs table...');
     await pool.query(`
@@ -236,30 +247,30 @@ export async function initDb(): Promise<void> {
 
     console.log('[DB] Inserting default classification rules...');
     await pool.query(`
-      INSERT INTO classification_rules (suffix, description, priority, active) VALUES
-        ('tion', '名词后缀', 10, 1),
-        ('ation', '名词后缀', 10, 1),
-        ('al', '形容词后缀', 9, 1),
-        ('ly', '副词后缀', 8, 1),
-        ('er', '名词后缀(人/物)', 7, 1),
-        ('or', '名词后缀(人/物)', 7, 1),
-        ('ing', '动名词/形容词', 6, 1),
-        ('ed', '过去式/分词', 6, 1),
-        ('ness', '名词后缀', 5, 1),
-        ('ment', '名词后缀', 5, 1),
-        ('able', '形容词后缀', 4, 1),
-        ('ible', '形容词后缀', 4, 1),
-        ('ful', '形容词后缀', 3, 1),
-        ('less', '形容词后缀', 3, 1),
-        ('ity', '名词后缀', 2, 1),
-        ('ize', '动词后缀', 2, 1),
-        ('ise', '动词后缀', 2, 1),
-        ('ous', '形容词后缀', 1, 1),
-        ('ive', '形容词后缀', 1, 1),
-        ('un', '否定前缀', 0, 1),
-        ('re', '重复前缀', 0, 1),
-        ('pre', '前前缀', 0, 1),
-        ('dis', '否定前缀', 0, 1)
+      INSERT INTO classification_rules (user_id, suffix, description, priority, active) VALUES
+        (NULL, 'tion', '名词后缀', 10, 1),
+        (NULL, 'ation', '名词后缀', 10, 1),
+        (NULL, 'al', '形容词后缀', 9, 1),
+        (NULL, 'ly', '副词后缀', 8, 1),
+        (NULL, 'er', '名词后缀(人/物)', 7, 1),
+        (NULL, 'or', '名词后缀(人/物)', 7, 1),
+        (NULL, 'ing', '动名词/形容词', 6, 1),
+        (NULL, 'ed', '过去式/分词', 6, 1),
+        (NULL, 'ness', '名词后缀', 5, 1),
+        (NULL, 'ment', '名词后缀', 5, 1),
+        (NULL, 'able', '形容词后缀', 4, 1),
+        (NULL, 'ible', '形容词后缀', 4, 1),
+        (NULL, 'ful', '形容词后缀', 3, 1),
+        (NULL, 'less', '形容词后缀', 3, 1),
+        (NULL, 'ity', '名词后缀', 2, 1),
+        (NULL, 'ize', '动词后缀', 2, 1),
+        (NULL, 'ise', '动词后缀', 2, 1),
+        (NULL, 'ous', '形容词后缀', 1, 1),
+        (NULL, 'ive', '形容词后缀', 1, 1),
+        (NULL, 'un', '否定前缀', 0, 1),
+        (NULL, 're', '重复前缀', 0, 1),
+        (NULL, 'pre', '前前缀', 0, 1),
+        (NULL, 'dis', '否定前缀', 0, 1)
       ON CONFLICT DO NOTHING
     `);
 

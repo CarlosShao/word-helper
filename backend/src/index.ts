@@ -175,7 +175,7 @@ async function startServer() {
           
           await withClient(async (client) => {
             const allWords = await client.query('SELECT * FROM words WHERE user_id = $1', [userId]);
-            const rules = await client.query('SELECT * FROM classification_rules WHERE active = 1 ORDER BY priority DESC');
+            const rules = await client.query('SELECT * FROM classification_rules WHERE user_id IS NULL OR user_id = $1 AND active = 1 ORDER BY user_id NULLS FIRST, priority DESC', [userId]);
             const existingRelations = await client.query('SELECT * FROM word_relations WHERE user_id = $1', [userId]);
             
             const words = allWords.rows;
@@ -778,19 +778,27 @@ async function startServer() {
   });
 
   app.get('/api/settings/:key', async (req, res) => {
+    const userId = await extractUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
     const { key } = req.params;
-    const setting = await get('SELECT value FROM settings WHERE key = $1', [key]);
+    const setting = await get('SELECT value FROM settings WHERE user_id = $1 AND key = $2', [userId, key]);
     res.json({ value: setting?.value || null });
   });
 
   app.post('/api/settings/:key', async (req, res) => {
+    const userId = await extractUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
     const { key } = req.params;
     const { value } = req.body;
-    const existing = await get('SELECT * FROM settings WHERE key = $1', [key]);
+    const existing = await get('SELECT * FROM settings WHERE user_id = $1 AND key = $2', [userId, key]);
     if (existing) {
-      await run('UPDATE settings SET value = $1 WHERE key = $2', [value, key]);
+      await run('UPDATE settings SET value = $1, updated_at = NOW() WHERE user_id = $2 AND key = $3', [value, userId, key]);
     } else {
-      await run('INSERT INTO settings (key, value) VALUES ($1, $2)', [key, value]);
+      await run('INSERT INTO settings (user_id, key, value) VALUES ($1, $2, $3)', [userId, key, value]);
     }
     res.json({ success: true });
   });
@@ -867,7 +875,7 @@ async function startServer() {
 
     const relations = await all('SELECT * FROM word_relations WHERE user_id = $1', [userId]);
 
-    const rules = await all('SELECT * FROM classification_rules WHERE active = 1 ORDER BY priority DESC');
+    const rules = await all('SELECT * FROM classification_rules WHERE (user_id IS NULL OR user_id = $1) AND active = 1 ORDER BY user_id NULLS FIRST, priority DESC', [userId]);
 
     const wordMap = new Map<number, any>();
     const rootWords: any[] = [];
@@ -1122,7 +1130,7 @@ async function startServer() {
       console.log(`[Classify] Classifying ${words.length} words...`);
 
       const allWords = await all('SELECT * FROM words WHERE user_id = $1', [userId]);
-      const rules = await all('SELECT * FROM classification_rules WHERE active = 1 ORDER BY priority DESC');
+      const rules = await all('SELECT * FROM classification_rules WHERE (user_id IS NULL OR user_id = $1) AND active = 1 ORDER BY user_id NULLS FIRST, priority DESC', [userId]);
 
       const wordIndex = new Map<string, number>();
       allWords.forEach(w => {

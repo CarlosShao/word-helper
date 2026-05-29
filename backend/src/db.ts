@@ -282,8 +282,8 @@ export async function initDb(): Promise<void> {
   }
 }
 
-export async function run(query: string, params?: any[]): Promise<void> {
-  await pool.query(query, params);
+export async function run(query: string, params?: any[]): Promise<QueryResult<any>> {
+  return pool.query(query, params);
 }
 
 export async function all(query: string, params?: any[]): Promise<any[]> {

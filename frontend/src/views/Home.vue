@@ -15,7 +15,7 @@
                 批量删除 ({{ selectedWords.length }})
               </el-button>
               <el-button type="warning" @click="reclassifyWords" :loading="classifying" size="small">
-                <el-icon><Refresh /></el-icon>
+                <el-icon><RefreshRight /></el-icon>
                 重新分类
               </el-button>
               <el-button type="primary" @click="showUploadDialog" size="small">
@@ -165,7 +165,7 @@
                     <template #dropdown>
                       <el-dropdown-menu>
                         <el-dropdown-item @click="resetWordClassification(row.id)">
-                          <el-icon><Refresh /></el-icon>
+                          <el-icon><RefreshRight /></el-icon>
                           重新分类
                         </el-dropdown-item>
                         <el-dropdown-item @click="showManualClassification(row.id)">
@@ -449,7 +449,7 @@ import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Search, View, Hide, Edit, Upload, 
-  DocumentAdd, Notebook, Document, Refresh,
+  DocumentAdd, Notebook, Document, RefreshRight,
   Delete, Loading, Plus, EditPen, More
 } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'

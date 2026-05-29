@@ -61,14 +61,14 @@
             :loading="loading"
             @click="handleSubmit"
           >
-            <el-icon style="margin-right: 8px"><Refresh /></el-icon>
+            <el-icon style="margin-right: 8px"><RefreshRight /></el-icon>
             {{ t('auth.resetPassword') }}
           </el-button>
         </el-form-item>
       </el-form>
       
       <div v-else class="success-message">
-        <el-icon class="success-icon"><CheckCircle /></el-icon>
+        <el-icon class="success-icon"><CircleCheck /></el-icon>
         <h3>{{ t('auth.resetSuccessTitle') }}</h3>
         <p>{{ t('auth.resetSuccessMessage') }}</p>
         <el-button
@@ -88,7 +88,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Key, Lock, Refresh, CheckCircle } from '@element-plus/icons-vue'
+import { Key, Lock, RefreshRight, CircleCheck } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 
 const { t } = useI18n()

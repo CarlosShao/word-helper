@@ -56,7 +56,7 @@
               清除进度
             </el-button>
             <el-button @click="goBack" size="small" text :disabled="isGoBackDisabled">
-              <el-icon><ArrowLeft /></el-icon>
+              <el-icon><DArrowLeft /></el-icon>
               上一个
             </el-button>
             <el-button @click="goHome" size="small" text class="go-home-btn">
@@ -112,7 +112,7 @@
             <span class="result-text">{{ isCorrect ? '回答正确！' : '回答错误' }}</span>
             <p v-if="!isCorrect" class="correct-answer">正确答案: <strong>{{ currentWord?.english }}</strong></p>
             <el-button v-if="!isCorrect" type="primary" @click="tryAgain" class="result-btn">
-              <el-icon style="margin-right: 6px;"><Refresh /></el-icon>
+              <el-icon style="margin-right: 6px;"><RefreshRight /></el-icon>
               再试一次
             </el-button>
             <el-button v-else type="success" @click="nextWord" class="result-btn">
@@ -132,7 +132,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   EditPen, CaretRight, FolderChecked, Edit, Check, View, ArrowRight, 
-  CircleCheckFilled, CircleCloseFilled, Refresh, Delete, Timer, ArrowLeft, HomeFilled, Loading
+  CircleCheckFilled, CircleCloseFilled, RefreshRight, Delete, Timer, DArrowLeft, HomeFilled, Loading
 } from '@element-plus/icons-vue'
 import { wordApi, type Word } from '../api'
 import { useRoute } from 'vue-router'

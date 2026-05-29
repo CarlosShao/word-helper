@@ -157,7 +157,7 @@
             <div class="item-left"></div>
             <div class="item-right">
               <el-button type="danger" @click="resetAppearanceConfirm">
-                <el-icon><Refresh /></el-icon>
+                <el-icon><RefreshRight /></el-icon>
                 {{ t('settings.reset') }}
               </el-button>
             </div>
@@ -173,7 +173,7 @@
                 {{ t('settings.addPos') }}
               </el-button>
               <el-button type="info" size="small" @click="initFromWords">
-                <el-icon><Refresh /></el-icon>
+                <el-icon><RefreshRight /></el-icon>
                 {{ t('settings.importFromWords') }}
               </el-button>
             </div>
@@ -219,7 +219,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Plus, Refresh, Setting, Picture, Document } from '@element-plus/icons-vue'
+import { Plus, RefreshRight, Setting, Picture, Document } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { posApi } from '../api'
 import { useAppearance } from '../composables/useAppearance'

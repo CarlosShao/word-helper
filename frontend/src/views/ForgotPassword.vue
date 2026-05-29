@@ -53,7 +53,7 @@
             :loading="loading"
             @click="handleSubmit"
           >
-            <el-icon style="margin-right: 8px"><Send /></el-icon>
+            <el-icon style="margin-right: 8px"><Check /></el-icon>
             {{ t('auth.sendResetLink') }}
           </el-button>
         </el-form-item>
@@ -61,13 +61,13 @@
       
       <div class="mode-switch">
         <button type="button" class="mode-switch-btn" @click="goToLogin">
-          <el-icon style="margin-right: 4px"><ArrowLeft /></el-icon>
+          <el-icon style="margin-right: 4px"><DArrowLeft /></el-icon>
           {{ t('auth.backToLogin') }}
         </button>
       </div>
       
       <div v-if="showSuccess" class="success-message">
-        <el-icon class="success-icon"><CheckCircle /></el-icon>
+        <el-icon class="success-icon"><CircleCheck /></el-icon>
         <p>{{ t('auth.resetLinkSent') }}</p>
       </div>
     </div>
@@ -79,7 +79,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Reading, Message, Send, ArrowLeft, CheckCircle } from '@element-plus/icons-vue'
+import { Reading, Message, CircleCheck, DArrowLeft, Check } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 
 const { t } = useI18n()

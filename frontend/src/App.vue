@@ -53,7 +53,7 @@ import { computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { User, SwitchButton, Settings, Tools } from '@element-plus/icons-vue'
+import { User, SwitchButton, Setting, Tools } from '@element-plus/icons-vue'
 import { useAuth } from './composables/useAuth'
 import { useAppearance } from './composables/useAppearance'
 

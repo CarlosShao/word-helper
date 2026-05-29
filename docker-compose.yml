@@ -1,6 +1,24 @@
 version: '3.8'
 
 services:
+  db:
+    image: postgres:15-alpine
+    container_name: word-helper-db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: wordhelper
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password123
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d wordhelper"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   word-helper:
     build: .
     container_name: word-helper
@@ -10,7 +28,12 @@ services:
       - ./data:/app/data
       - ./uploads:/app/uploads
     environment:
-      # 数据库连接字符串（默认使用后端内置的远程数据库）
-      # 如需更换，可以修改下面的 DATABASE_URL
-      - DATABASE_URL=${DATABASE_URL:-}
+      DATABASE_URL: postgresql://admin:password123@db:5432/wordhelper
+      PGSSLMODE: disable
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  postgres_data:

@@ -6,6 +6,7 @@ import ErrorWords from './views/ErrorWords.vue'
 import YesterdayErrors from './views/YesterdayErrors.vue'
 import Settings from './views/Settings.vue'
 import { useAuth } from './composables/useAuth'
+import { ElMessage } from 'element-plus'
 
 const routes = [
   { path: '/login', component: Login },
@@ -24,9 +25,9 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   console.log('[DEBUG-ROUTER] ====== ROUTER GUARD ======');
   console.log('[DEBUG-ROUTER] Navigating from:', from.path, 'to:', to.path);
-  console.log('[DEBUG-ROUTIN] Query params:', JSON.stringify(to.query));
+  console.log('[DEBUG-ROUTER] Query params:', JSON.stringify(to.query));
   
-  const { login } = useAuth()
+  const { login, logout, validateToken } = useAuth()
   
   const githubToken = to.query.github_token as string
   const username = to.query.username as string
@@ -45,9 +46,22 @@ router.beforeEach(async (to, from, next) => {
   const token = localStorage.getItem('token')
   console.log('[DEBUG-ROUTER] Token from localStorage:', token ? 'present (' + token.substring(0, 20) + '...)' : 'none');
   
-  if (to.meta.requiresAuth && !token) {
-    console.log('[DEBUG-ROUTER] No token, requires auth - redirecting to /login');
-    next('/login')
+  if (to.meta.requiresAuth) {
+    if (!token) {
+      console.log('[DEBUG-ROUTER] No token, requires auth - redirecting to /login');
+      next('/login')
+    } else {
+      console.log('[DEBUG-ROUTER] Token exists, validating...');
+      const isValid = await validateToken()
+      if (!isValid) {
+        console.log('[DEBUG-ROUTER] Token invalid or expired - redirecting to /login');
+        ElMessage.warning('登录已过期，请重新登录')
+        next('/login')
+      } else {
+        console.log('[DEBUG-ROUTER] Token valid, allowing navigation');
+        next()
+      }
+    }
   } else if (to.path === '/login' && token) {
     console.log('[DEBUG-ROUTER] Already logged in, redirecting to /');
     next('/')

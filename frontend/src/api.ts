@@ -62,6 +62,10 @@ export const wordApi = {
     return api.get('/words', { params: { page, pageSize, search } })
   },
   
+  getAllWords: () => {
+    return api.get('/words/all')
+  },
+  
   getWordIndex: (wordId: number) => {
     return api.get(`/words/index/${wordId}`)
   },

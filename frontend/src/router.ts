@@ -66,23 +66,15 @@ router.beforeEach(async (to, from, next) => {
       localStorage.setItem('username', username)
     }
     
-    const maxRetries = 5
-    let retryCount = 0
-    let tokenSaved = false
+    console.log('[DEBUG-ROUTER] Validating GitHub token with backend...');
+    const isValid = await validateToken(githubToken)
     
-    while (retryCount < maxRetries && !tokenSaved) {
-      await new Promise(resolve => setTimeout(resolve, 200))
-      const currentToken = localStorage.getItem('token')
-      if (currentToken) {
-        tokenSaved = true
-        console.log('[DEBUG-ROUTER] Login successful on attempt', retryCount + 1);
-        next({ path: '/', query: {} })
-      }
-      retryCount++
-    }
-    
-    if (!tokenSaved) {
-      console.log('[DEBUG-ROUTER] Login failed after', maxRetries, 'attempts, redirecting to /login');
+    if (isValid) {
+      console.log('[DEBUG-ROUTER] GitHub token validated successfully');
+      next({ path: '/', query: {} })
+    } else {
+      console.log('[DEBUG-ROUTER] GitHub token validation failed');
+      clearAuthState()
       next('/login')
     }
     return

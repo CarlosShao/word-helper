@@ -183,21 +183,9 @@ const isGoBackDisabled = computed(() => {
 
 const loadWords = async () => {
   try {
-    // 优化：只先获取总数，然后按需批量加载
-    const countPage = await wordApi.getWords(1, 1)
-    totalWords.value = countPage.data.total || 0
-    
-    // 批量加载所有单词，使用较小的页大小避免卡顿
-    const allWords: any[] = []
-    const pageSize = 500 // 使用较小的页大小，减少每次请求的数据量
-    const totalPages = Math.ceil(totalWords.value / pageSize)
-    
-    for (let page = 1; page <= totalPages; page++) {
-      const res = await wordApi.getWords(page, pageSize)
-      allWords.push(...res.data.words)
-    }
-    
-    words.value = allWords
+    const res = await wordApi.getAllWords()
+    words.value = res.data.words || []
+    totalWords.value = words.value.length
   } catch (error) {
     ElMessage.error(t('home.loadFailed'))
   }
@@ -629,6 +617,7 @@ onBeforeUnmount(async () => {
   padding: 16px;
   background: #f8f9fb;
   border-radius: 10px;
+  flex-wrap: wrap;
 }
 
 .progress-info {
@@ -636,6 +625,7 @@ onBeforeUnmount(async () => {
   flex-direction: column;
   align-items: flex-start;
   min-width: 80px;
+  flex-shrink: 0;
 }
 
 .progress-text {
@@ -651,11 +641,17 @@ onBeforeUnmount(async () => {
 
 .progress-line {
   flex: 1;
+  min-width: 200px;
 }
 
 .progress-actions {
   display: flex;
   gap: 8px;
+  flex-shrink: 0;
+}
+
+.go-home-btn {
+  white-space: nowrap;
 }
 
 .word-display {

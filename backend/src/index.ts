@@ -9,6 +9,34 @@ import { authRouter, getUserIdFromToken } from './auth';
 
 const captchaStore = new Map<string, { code: string; expiresAt: number }>();
 
+interface WordCacheEntry {
+  words: any[];
+  timestamp: number;
+}
+const wordCache = new Map<number, WordCacheEntry>();
+const CACHE_DURATION = 300000;
+
+const getCachedWords = (userId: number): any[] | null => {
+  const entry = wordCache.get(userId);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > CACHE_DURATION) {
+    wordCache.delete(userId);
+    return null;
+  }
+  return entry.words;
+};
+
+const setCachedWords = (userId: number, words: any[]): void => {
+  wordCache.set(userId, {
+    words,
+    timestamp: Date.now()
+  });
+};
+
+const invalidateWordCache = (userId: number): void => {
+  wordCache.delete(userId);
+};
+
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
@@ -511,6 +539,29 @@ async function startServer() {
       page,
       pageSize
     });
+  });
+
+  app.get('/api/words/all', async (req, res) => {
+    const userId = await extractUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const cachedWords = getCachedWords(userId);
+    if (cachedWords) {
+      console.log(`[DEBUG-CACHE] Returning cached words for user ${userId}`);
+      return res.json({ success: true, words: cachedWords });
+    }
+
+    try {
+      const words = await all('SELECT * FROM words WHERE user_id = $1 ORDER BY english', [userId]);
+      setCachedWords(userId, words);
+      console.log(`[DEBUG-CACHE] Cached ${words.length} words for user ${userId}`);
+      res.json({ success: true, words });
+    } catch (error) {
+      console.error('Get all words error:', error);
+      res.status(500).json({ success: false, message: '获取单词失败' });
+    }
   });
 
   app.put('/api/words/:id', async (req, res) => {

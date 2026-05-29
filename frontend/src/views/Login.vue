@@ -669,17 +669,18 @@ const handleGitHubLogin = async () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
+  width: 100%;
 }
 
-.remember-me :deep(.el-checkbox__label) {
-  font-size: 14px;
-  color: #606266;
+.remember-me > *:first-child {
+  margin-right: auto;
 }
 
 .forgot-password {
   font-size: 14px;
   color: #667eea;
   text-decoration: none;
+  margin-left: auto;
 }
 
 .forgot-password:hover {

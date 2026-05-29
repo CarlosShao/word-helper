@@ -351,7 +351,8 @@ router.get('/github/callback', async (req, res) => {
       [user.id, token, expiresAt]);
     console.log('[DEBUG-GITHUB-CB] Session inserted successfully');
 
-    const redirectUrl = `${baseUrl}/?github_token=${token}&username=${encodeURIComponent(user.username)}`;
+    const encodedToken = encodeURIComponent(token);
+    const redirectUrl = `${baseUrl}/?github_token=${encodedToken}&username=${encodeURIComponent(user.username)}`;
     console.log('[DEBUG-GITHUB-CB] Redirecting to:', redirectUrl.substring(0, 100) + '...');
     res.redirect(redirectUrl);
   } catch (error) {

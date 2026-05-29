@@ -31,14 +31,24 @@ api.interceptors.response.use(
     const isLoginRequest = error.config?.url?.includes('/auth/login')
     const isLogoutRequest = error.config?.url?.includes('/auth/logout')
     
-    if (error.response?.status === 401 && !isLoginRequest && !isLogoutRequest && !isLoggingOut && !isRefreshingToken) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('username')
-      const appContainer = document.querySelector('.app-container')
-      if (!appContainer) {
-        ElMessage.warning(window.__i18n?.t('auth.loginExpired') || '登录已过期，请重新登录')
+    if (error.response?.status === 401) {
+      if (isLoggingOut) {
+        console.log('[DEBUG-API] 401 during logout - ignoring')
+        return Promise.reject(error)
       }
-      router.push('/login')
+      
+      if (!isLoginRequest && !isLogoutRequest && !isRefreshingToken) {
+        const currentPath = router.currentRoute.value.path
+        if (currentPath !== '/login') {
+          localStorage.removeItem('token')
+          localStorage.removeItem('username')
+          const appContainer = document.querySelector('.app-container')
+          if (!appContainer) {
+            ElMessage.warning(window.__i18n?.t('auth.loginExpired') || '登录已过期，请重新登录')
+          }
+          router.push('/login')
+        }
+      }
     }
     return Promise.reject(error)
   }

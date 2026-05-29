@@ -20,7 +20,7 @@
         <el-form-item prop="username">
           <el-input
             v-model="loginForm.username"
-            :placeholder="t('auth.usernamePlaceholder')"
+            :placeholder="t('auth.usernameOrEmailPlaceholder')"
             size="large"
             :prefix-icon="User"
             class="login-input"

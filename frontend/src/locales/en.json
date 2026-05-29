@@ -66,7 +66,9 @@
     "operationFailed": "Operation failed",
     "importFromWords": "Import from Words",
     "importSuccess": "Successfully imported {count} parts of speech",
-    "importFailed": "Import failed"
+    "importFailed": "Import failed",
+    "enableGlassEffect": "Enable Glass Effect",
+    "glassEffectHint": "Enable glass effect for navigation bar, cards and tables"
   },
   "nav": {
     "home": "Home",
@@ -124,7 +126,19 @@
     "passwordMedium": "Medium",
     "passwordStrong": "Strong",
     "agreeTerms": "I agree to Terms of Service and Privacy Policy",
-    "agreeTermsRequired": "Please agree to Terms of Service"
+    "agreeTermsRequired": "Please agree to Terms of Service",
+    "usernameOrEmailPlaceholder": "Username or email",
+    "forgotPasswordTitle": "Forgot Password",
+    "forgotPasswordSubtitle": "Enter your email to receive a reset link",
+    "sendResetLink": "Send Reset Link",
+    "resetLinkSent": "Password reset link has been sent to your email",
+    "resetPasswordTitle": "Reset Password",
+    "resetPasswordSubtitle": "Set a new password",
+    "resetPassword": "Reset Password",
+    "resetSuccessTitle": "Password Reset Successful",
+    "resetSuccessMessage": "Your password has been reset successfully, please login again",
+    "invalidLink": "Invalid or expired link",
+    "backToLogin": "Back to Login"
   },
   "home": {
     "wordList": "Word List",

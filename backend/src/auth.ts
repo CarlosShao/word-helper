@@ -22,23 +22,24 @@ async function getUserIdFromToken(token: string): Promise<number | null> {
 
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, remember } = req.body;
     console.log('[DEBUG-LOGIN] Login attempt for email:', email);
     
     if (!email || !password) {
-      return res.status(400).json({ success: false, message: '请填写邮箱和密码' });
+      return res.status(400).json({ success: false, message: '请填写用户名/邮箱和密码' });
     }
     
     const hashedPassword = hashPassword(password);
-    const user = await get('SELECT id, username FROM users WHERE email = $1 AND password = $2', [email, hashedPassword]);
+    const user = await get('SELECT id, username, email FROM users WHERE (email = $1 OR username = $1) AND password = $2', [email, hashedPassword]);
     console.log('[DEBUG-LOGIN] User found:', user ? `id=${user.id}, username=${user.username}` : 'none');
     
     if (!user) {
-      return res.status(401).json({ success: false, message: '邮箱或密码错误' });
+      return res.status(401).json({ success: false, message: '用户名/邮箱或密码错误' });
     }
     
+    const expiresDays = remember ? 30 : 7;
     const token = generateToken();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + expiresDays * 24 * 60 * 60 * 1000);
     console.log('[DEBUG-LOGIN] Generated token:', token.substring(0, 20) + '...');
     
     await run('INSERT INTO user_sessions (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, token, expiresAt]);
@@ -48,6 +49,68 @@ router.post('/login', async (req, res) => {
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ success: false, message: '登录失败' });
+  }
+});
+
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ success: false, message: '请填写邮箱' });
+    }
+    
+    const user = await get('SELECT id, username FROM users WHERE email = $1', [email]);
+    
+    if (!user) {
+      return res.status(404).json({ success: false, message: '该邮箱未注册' });
+    }
+    
+    const token = generateToken();
+    const expiresAt = new Date(Date.now() + 1 * 60 * 60 * 1000);
+    
+    await run('INSERT INTO password_resets (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, token, expiresAt]);
+    
+    console.log('[DEBUG-FORGOT-PASSWORD] Reset token generated for user:', user.id);
+    
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${token}`;
+    
+    res.json({ 
+      success: true, 
+      message: '密码重置链接已发送到您的邮箱',
+      resetLink 
+    });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ success: false, message: '发送失败' });
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    
+    if (!token || !password) {
+      return res.status(400).json({ success: false, message: '参数错误' });
+    }
+    
+    const reset = await get('SELECT user_id FROM password_resets WHERE token = $1 AND expires_at > NOW()', [token]);
+    
+    if (!reset) {
+      return res.status(401).json({ success: false, message: '链接已过期或无效' });
+    }
+    
+    const hashedPassword = hashPassword(password);
+    
+    await run('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, reset.user_id]);
+    await run('DELETE FROM password_resets WHERE token = $1', [token]);
+    
+    console.log('[DEBUG-RESET-PASSWORD] Password reset for user:', reset.user_id);
+    
+    res.json({ success: true, message: '密码重置成功' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ success: false, message: '重置失败' });
   }
 });
 

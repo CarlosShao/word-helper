@@ -141,6 +141,18 @@
             </div>
           </div>
 
+          <div class="settings-divider"></div>
+
+          <div class="settings-item">
+            <div class="item-left">
+              <label class="item-label">{{ t('settings.enableGlassEffect') }}</label>
+              <span class="item-hint">{{ t('settings.glassEffectHint') }}</span>
+            </div>
+            <div class="item-right">
+              <el-switch v-model="appearanceSettings.enableGlassEffect" />
+            </div>
+          </div>
+
           <div class="settings-item">
             <div class="item-left"></div>
             <div class="item-right">

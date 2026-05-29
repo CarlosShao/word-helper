@@ -66,7 +66,9 @@
     "operationFailed": "操作失败",
     "importFromWords": "从单词导入",
     "importSuccess": "成功导入 {count} 个词性",
-    "importFailed": "导入失败"
+    "importFailed": "导入失败",
+    "enableGlassEffect": "启用毛玻璃效果",
+    "glassEffectHint": "为导航栏、卡片和表格启用毛玻璃效果"
   },
   "nav": {
     "home": "首页",
@@ -122,7 +124,19 @@
     "passwordMedium": "中",
     "passwordStrong": "强",
     "agreeTerms": "同意服务条款和隐私政策",
-    "agreeTermsRequired": "请同意服务条款"
+    "agreeTermsRequired": "请同意服务条款",
+    "usernameOrEmailPlaceholder": "用户名或邮箱",
+    "forgotPasswordTitle": "忘记密码",
+    "forgotPasswordSubtitle": "输入您的邮箱，我们将发送重置链接",
+    "sendResetLink": "发送重置链接",
+    "resetLinkSent": "密码重置链接已发送到您的邮箱",
+    "resetPasswordTitle": "重置密码",
+    "resetPasswordSubtitle": "设置新密码",
+    "resetPassword": "重置密码",
+    "resetSuccessTitle": "密码重置成功",
+    "resetSuccessMessage": "您的密码已成功重置，请重新登录",
+    "invalidLink": "链接无效或已过期",
+    "backToLogin": "返回登录"
   },
   "home": {
     "wordList": "单词列表",

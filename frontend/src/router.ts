@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Login from './views/Login.vue'
+import ForgotPassword from './views/ForgotPassword.vue'
+import ResetPassword from './views/ResetPassword.vue'
 import Home from './views/Home.vue'
 import Practice from './views/Practice.vue'
 import ErrorWords from './views/ErrorWords.vue'
@@ -10,6 +12,8 @@ import { ElMessage } from 'element-plus'
 
 const routes = [
   { path: '/login', component: Login },
+  { path: '/forgot-password', component: ForgotPassword },
+  { path: '/reset-password', component: ResetPassword },
   { path: '/', component: Home, meta: { requiresAuth: true } },
   { path: '/practice', component: Practice, meta: { requiresAuth: true } },
   { path: '/error-words', component: ErrorWords, meta: { requiresAuth: true } },

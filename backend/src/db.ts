@@ -126,6 +126,9 @@ export async function initDb(): Promise<void> {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_words_english ON words(english)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_words_chinese ON words(chinese)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_words_user ON words(user_id)`);
+    await pool.query(`ALTER TABLE IF EXISTS words ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 1`);
+    await pool.query(`ALTER TABLE IF EXISTS words ADD COLUMN IF NOT EXISTS display_name TEXT`);
+    await pool.query(`ALTER TABLE IF EXISTS words ADD COLUMN IF NOT EXISTS is_classified INTEGER DEFAULT 0`);
     console.log('[DB] words table created');
 
     console.log('[DB] Creating error_words table...');
@@ -138,6 +141,7 @@ export async function initDb(): Promise<void> {
         FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
       )
     `);
+    await pool.query(`ALTER TABLE IF EXISTS error_words ADD COLUMN IF NOT EXISTS user_id INTEGER`);
 
     console.log('[DB] Creating observation_words table...');
     await pool.query(`
@@ -150,6 +154,8 @@ export async function initDb(): Promise<void> {
         FOREIGN KEY (word_id) REFERENCES words(id) ON DELETE CASCADE
       )
     `);
+    await pool.query(`ALTER TABLE IF EXISTS observation_words ADD COLUMN IF NOT EXISTS user_id INTEGER`);
+    await pool.query(`ALTER TABLE IF EXISTS observation_words ADD COLUMN IF NOT EXISTS correct_count INTEGER DEFAULT 0`);
 
     console.log('[DB] Creating import_files table...');
     await pool.query(`
@@ -162,6 +168,7 @@ export async function initDb(): Promise<void> {
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_import_user ON import_files(user_id)`);
+    await pool.query(`ALTER TABLE IF EXISTS import_files ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 1`);
 
     console.log('[DB] Creating settings table...');
     await pool.query(`
@@ -208,6 +215,7 @@ export async function initDb(): Promise<void> {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_relations_root ON word_relations(root_word_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_relations_child ON word_relations(child_word_id)`);
+    await pool.query(`ALTER TABLE IF EXISTS word_relations ADD COLUMN IF NOT EXISTS user_id INTEGER`);
 
     console.log('[DB] Creating classification_rules table...');
     await pool.query(`

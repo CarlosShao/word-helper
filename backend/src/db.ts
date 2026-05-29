@@ -110,16 +110,19 @@ export async function initDb(): Promise<void> {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS words (
         id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
         english TEXT NOT NULL,
         part_of_speech TEXT,
         chinese TEXT NOT NULL,
         display_name TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        is_classified INTEGER DEFAULT 0
+        is_classified INTEGER DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_words_english ON words(english)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_words_chinese ON words(chinese)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_words_user ON words(user_id)`);
     console.log('[DB] words table created');
 
     console.log('[DB] Creating error_words table...');
@@ -149,10 +152,13 @@ export async function initDb(): Promise<void> {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS import_files (
         id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
         filename TEXT NOT NULL,
-        imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_import_user ON import_files(user_id)`);
 
     console.log('[DB] Creating settings table...');
     await pool.query(`

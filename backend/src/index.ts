@@ -10,6 +10,15 @@ import { authRouter, getUserIdFromToken } from './auth';
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
+async function extractUserId(req: express.Request): Promise<number | null> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  const token = authHeader.substring(7);
+  return getUserIdFromToken(token);
+}
+
 const corsOptions = {
   origin: function (origin: any, callback: any) {
     const allowedOrigins = [
@@ -71,7 +80,11 @@ async function startServer() {
 
   app.post('/api/import', upload.single('file'), async (req, res) => {
     try {
-      console.log('[Import] Starting import process...');
+      const userId = await extractUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      console.log('[Import] Starting import process for user:', userId);
       
       if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
@@ -92,7 +105,7 @@ async function startServer() {
         
         try {
           console.log('[Import] Creating import file record...');
-          await client.query('INSERT INTO import_files (filename) VALUES ($1)', [req.file!.originalname]);
+          await client.query('INSERT INTO import_files (user_id, filename) VALUES ($1, $2)', [userId, req.file!.originalname]);
           const importFileResult = await client.query('SELECT id FROM import_files ORDER BY id DESC LIMIT 1');
           const importFileId = importFileResult.rows[0]?.id || 0;
           console.log(`[Import] Import file ID: ${importFileId}`);
@@ -116,24 +129,26 @@ async function startServer() {
             console.log('[Import] Error logs saved');
           }
 
-          console.log('[Import] Clearing existing words...');
-          await client.query('DELETE FROM word_relations');
-          await client.query('DELETE FROM words');
-          console.log('[Import] Existing words cleared');
+          console.log('[Import] Clearing existing words for this user...');
+          await client.query('DELETE FROM word_relations WHERE user_id = $1', [userId]);
+          await client.query('DELETE FROM error_words WHERE word_id IN (SELECT id FROM words WHERE user_id = $1)', [userId]);
+          await client.query('DELETE FROM observation_words WHERE word_id IN (SELECT id FROM words WHERE user_id = $1)', [userId]);
+          await client.query('DELETE FROM words WHERE user_id = $1', [userId]);
+          console.log('[Import] User words cleared');
 
           if (words.length > 0) {
             console.log(`[Import] Inserting ${words.length} words in batches...`);
-            const wordValues = words.map(w => [w.english, w.part_of_speech, w.chinese, 0]);
+            const wordValues = words.map(w => [userId, w.english, w.part_of_speech, w.chinese, 0]);
             const batchSize = 100;
             
             for (let i = 0; i < wordValues.length; i += batchSize) {
               const batch = wordValues.slice(i, i + batchSize);
               const placeholders = batch.map((_, rowIndex) => 
-                `($${rowIndex * 4 + 1}, $${rowIndex * 4 + 2}, $${rowIndex * 4 + 3}, $${rowIndex * 4 + 4})`
+                `($${rowIndex * 5 + 1}, $${rowIndex * 5 + 2}, $${rowIndex * 5 + 3}, $${rowIndex * 5 + 4}, $${rowIndex * 5 + 5})`
               ).join(', ');
               
               await client.query(
-                'INSERT INTO words (english, part_of_speech, chinese, is_classified) VALUES ' + placeholders,
+                'INSERT INTO words (user_id, english, part_of_speech, chinese, is_classified) VALUES ' + placeholders,
                 batch.flat()
               );
               
@@ -156,12 +171,12 @@ async function startServer() {
       console.log('[Import] Scheduling auto-classification...');
       setTimeout(async () => {
         try {
-          console.log('[Classification] Starting auto-classification...');
+          console.log('[Classification] Starting auto-classification for user:', userId);
           
           await withClient(async (client) => {
-            const allWords = await client.query('SELECT * FROM words');
+            const allWords = await client.query('SELECT * FROM words WHERE user_id = $1', [userId]);
             const rules = await client.query('SELECT * FROM classification_rules WHERE active = 1 ORDER BY priority DESC');
-            const existingRelations = await client.query('SELECT * FROM word_relations');
+            const existingRelations = await client.query('SELECT * FROM word_relations WHERE user_id = $1', [userId]);
             
             const words = allWords.rows;
             const ruleList = rules.rows;
@@ -179,7 +194,7 @@ async function startServer() {
               existingIndex.add(`${r.root_word_id}-${r.child_word_id}-${r.relation_type}`);
             });
 
-            const relationsToInsert: Array<{ root: number, child: number, type: string }> = [];
+            const relationsToInsert: Array<{ user_id: number; root: number; child: number; type: string }> = [];
             const processedIds: number[] = [];
 
             for (const word of words as any[]) {
@@ -191,7 +206,7 @@ async function startServer() {
                 if (coreWord && coreWord !== word.id) {
                   const key = `${coreWord}-${word.id}-phrase`;
                   if (!existingIndex.has(key)) {
-                    relationsToInsert.push({ root: coreWord, child: word.id, type: 'phrase' });
+                    relationsToInsert.push({ user_id: userId, root: coreWord, child: word.id, type: 'phrase' });
                     wasClassified = true;
                   }
                 }
@@ -200,7 +215,7 @@ async function startServer() {
                 if (rootWord && rootWord !== word.id) {
                   const key = `${rootWord}-${word.id}-derivative`;
                   if (!existingIndex.has(key)) {
-                    relationsToInsert.push({ root: rootWord, child: word.id, type: 'derivative' });
+                    relationsToInsert.push({ user_id: userId, root: rootWord, child: word.id, type: 'derivative' });
                     wasClassified = true;
                   }
                 }
@@ -220,18 +235,18 @@ async function startServer() {
                 for (let i = 0; i < relationsToInsert.length; i += batchSize) {
                   const batch = relationsToInsert.slice(i, i + batchSize);
                   const placeholders = batch.map((_, rowIndex) => 
-                    `($${rowIndex * 3 + 1}, $${rowIndex * 3 + 2}, $${rowIndex * 3 + 3})`
+                    `($${rowIndex * 4 + 1}, $${rowIndex * 4 + 2}, $${rowIndex * 4 + 3}, $${rowIndex * 4 + 4})`
                   ).join(', ');
                   
                   await client.query(
-                    'INSERT INTO word_relations (root_word_id, child_word_id, relation_type) VALUES ' + placeholders,
-                    batch.flatMap(r => [r.root, r.child, r.type])
+                    'INSERT INTO word_relations (user_id, root_word_id, child_word_id, relation_type) VALUES ' + placeholders,
+                    batch.flatMap(r => [r.user_id, r.root, r.child, r.type])
                   );
                 }
                 
                 if (processedIds.length > 0) {
-                  const placeholders = processedIds.map((_, i) => `$${i + 1}`).join(',');
-                  await client.query(`UPDATE words SET is_classified = 1 WHERE id IN (${placeholders})`, processedIds);
+                  const paramPlaceholders = processedIds.map((_, i) => `$${i + 2}`).join(',');
+                  await client.query(`UPDATE words SET is_classified = 1 WHERE user_id = $1 AND id IN (${paramPlaceholders})`, [userId, ...processedIds]);
                 }
                 
                 await client.query('COMMIT');
@@ -289,6 +304,11 @@ async function startServer() {
   });
 
   app.get('/api/words', async (req, res) => {
+    const userId = await extractUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const page = parseInt(req.query.page as string) || 1;
     const pageSize = parseInt(req.query.pageSize as string) || 20;
     const search = (req.query.search as string) || '';
@@ -301,17 +321,17 @@ async function startServer() {
     if (search) {
       const searchTerm = `%${search}%`;
       const [wordsResult, countResult] = await Promise.all([
-        all('SELECT * FROM words WHERE english LIKE $1 OR chinese LIKE $2 ORDER BY english LIMIT $3 OFFSET $4', 
-            [searchTerm, searchTerm, pageSize, offset]),
-        get('SELECT COUNT(*) as total FROM words WHERE english LIKE $1 OR chinese LIKE $2', 
-            [searchTerm, searchTerm])
+        all('SELECT * FROM words WHERE user_id = $1 AND (english LIKE $2 OR chinese LIKE $3) ORDER BY english LIMIT $4 OFFSET $5', 
+            [userId, searchTerm, searchTerm, pageSize, offset]),
+        get('SELECT COUNT(*) as total FROM words WHERE user_id = $1 AND (english LIKE $2 OR chinese LIKE $3)', 
+            [userId, searchTerm, searchTerm])
       ]);
       words = wordsResult;
       total = parseInt(countResult?.total) || 0;
     } else {
       const [wordsResult, countResult] = await Promise.all([
-        all('SELECT * FROM words ORDER BY english LIMIT $1 OFFSET $2', [pageSize, offset]),
-        get('SELECT COUNT(*) as total FROM words')
+        all('SELECT * FROM words WHERE user_id = $1 ORDER BY english LIMIT $2 OFFSET $3', [userId, pageSize, offset]),
+        get('SELECT COUNT(*) as total FROM words WHERE user_id = $1', [userId])
       ]);
       words = wordsResult;
       total = parseInt(countResult?.total) || 0;
@@ -325,11 +345,12 @@ async function startServer() {
     let allChildWordIds: Set<number> = new Set();
     
     if (wordIds.length > 0) {
-      const placeholders = wordIds.map((_, i) => `$${i + 1}`).join(',');
+      const params = [userId, ...wordIds];
+      const placeholders = wordIds.map((_, i) => `$${i + 2}`).join(',');
       
       const [relationsResult, childIdsResult] = await Promise.all([
-        all(`SELECT * FROM word_relations WHERE root_word_id IN (${placeholders})`, wordIds),
-        all(`SELECT DISTINCT child_word_id FROM word_relations WHERE root_word_id IN (${placeholders})`, wordIds)
+        all(`SELECT * FROM word_relations WHERE user_id = $1 AND root_word_id IN (${placeholders})`, params),
+        all(`SELECT DISTINCT child_word_id FROM word_relations WHERE user_id = $1 AND root_word_id IN (${placeholders})`, params)
       ]);
       
       relations = relationsResult;
@@ -338,8 +359,9 @@ async function startServer() {
       childWordIds = [...allChildWordIds];
       
       if (childWordIds.length > 0) {
-        const childPlaceholders = childWordIds.map((_, i) => `$${i + 1}`).join(',');
-        childWords = await all(`SELECT * FROM words WHERE id IN (${childPlaceholders})`, childWordIds);
+        const params = [userId, ...childWordIds];
+        const childPlaceholders = childWordIds.map((_, i) => `$${i + 2}`).join(',');
+        childWords = await all(`SELECT * FROM words WHERE user_id = $1 AND id IN (${childPlaceholders})`, params);
       }
     }
     
@@ -403,6 +425,11 @@ async function startServer() {
   });
 
   app.put('/api/words/:id', async (req, res) => {
+    const userId = await extractUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const wordId = parseInt(req.params.id);
     const { english, part_of_speech, chinese } = req.body;
     
@@ -411,8 +438,8 @@ async function startServer() {
         return res.status(400).json({ success: false, message: '英文和中文不能为空' });
       }
       
-      await run('UPDATE words SET english = $1, part_of_speech = $2, chinese = $3 WHERE id = $4',
-          [english, part_of_speech || '', chinese, wordId]);
+      await run('UPDATE words SET english = $1, part_of_speech = $2, chinese = $3 WHERE user_id = $4 AND id = $5',
+          [english, part_of_speech || '', chinese, userId, wordId]);
       
       res.json({ success: true });
     } catch (error) {
@@ -422,16 +449,21 @@ async function startServer() {
   });
 
   app.get('/api/words/index/:wordId', async (req, res) => {
+    const userId = await extractUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const wordId = parseInt(req.params.wordId);
     
     try {
       const result = await get(`
         SELECT COUNT(*) as word_index 
         FROM words 
-        WHERE english < (SELECT english FROM words WHERE id = $1)
-      `, [wordId]);
+        WHERE user_id = $1 AND english < (SELECT english FROM words WHERE user_id = $1 AND id = $2)
+      `, [userId, wordId]);
       
-      const totalResult = await get('SELECT COUNT(*) as total FROM words');
+      const totalResult = await get('SELECT COUNT(*) as total FROM words WHERE user_id = $1', [userId]);
       
       res.json({
         success: true,
@@ -447,6 +479,11 @@ async function startServer() {
   });
 
   app.post('/api/words', async (req, res) => {
+    const userId = await extractUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { english, part_of_speech, chinese } = req.body;
     
     try {
@@ -454,8 +491,8 @@ async function startServer() {
         return res.status(400).json({ success: false, message: '英文和中文不能为空' });
       }
       
-      await run('INSERT INTO words (english, part_of_speech, chinese, is_classified) VALUES ($1, $2, $3, 0)',
-          [english, part_of_speech || '', chinese]);
+      await run('INSERT INTO words (user_id, english, part_of_speech, chinese, is_classified) VALUES ($1, $2, $3, $4, 0)',
+          [userId, english, part_of_speech || '', chinese]);
       
       const newWord = await get('SELECT * FROM words ORDER BY id DESC LIMIT 1');
       
@@ -467,18 +504,23 @@ async function startServer() {
   });
 
   app.delete('/api/words/:id', async (req, res) => {
+    const userId = await extractUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const wordId = parseInt(req.params.id);
     
     try {
-      console.log(`[DeleteWord] Deleting word ${wordId}...`);
+      console.log(`[DeleteWord] Deleting word ${wordId} for user ${userId}...`);
       
       await withClient(async (client) => {
         await client.query('BEGIN');
         
-        await client.query('DELETE FROM word_relations WHERE root_word_id = $1 OR child_word_id = $1', [wordId]);
-        await client.query('DELETE FROM error_words WHERE word_id = $1', [wordId]);
-        await client.query('DELETE FROM observation_words WHERE word_id = $1', [wordId]);
-        await client.query('DELETE FROM words WHERE id = $1', [wordId]);
+        await client.query('DELETE FROM word_relations WHERE user_id = $1 AND (root_word_id = $2 OR child_word_id = $2)', [userId, wordId]);
+        await client.query('DELETE FROM error_words WHERE user_id = $1 AND word_id = $2', [userId, wordId]);
+        await client.query('DELETE FROM observation_words WHERE user_id = $1 AND word_id = $2', [userId, wordId]);
+        await client.query('DELETE FROM words WHERE user_id = $1 AND id = $2', [userId, wordId]);
         
         await client.query('COMMIT');
       });
@@ -492,6 +534,11 @@ async function startServer() {
   });
 
   app.post('/api/words/batch-delete', async (req, res) => {
+    const userId = await extractUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { wordIds } = req.body;
     
     if (!Array.isArray(wordIds) || wordIds.length === 0) {
@@ -499,19 +546,19 @@ async function startServer() {
     }
     
     try {
-      console.log(`[BatchDelete] Deleting ${wordIds.length} words...`);
+      console.log(`[BatchDelete] Deleting ${wordIds.length} words for user ${userId}...`);
       
       await withClient(async (client) => {
         await client.query('BEGIN');
         
-        const placeholders1 = wordIds.map((_, i) => `$${i + 1}`).join(',');
-        const placeholders2 = wordIds.map((_, i) => `$${i + wordIds.length + 1}`).join(',');
-        const params = [...wordIds, ...wordIds];
+        const params = [userId, ...wordIds, ...wordIds];
+        const placeholders1 = wordIds.map((_, i) => `$${i + 2}`).join(',');
+        const placeholders2 = wordIds.map((_, i) => `$${i + wordIds.length + 2}`).join(',');
         
-        await client.query(`DELETE FROM word_relations WHERE root_word_id IN (${placeholders1}) OR child_word_id IN (${placeholders2})`, params);
-        await client.query(`DELETE FROM error_words WHERE word_id IN (${placeholders1})`, wordIds);
-        await client.query(`DELETE FROM observation_words WHERE word_id IN (${placeholders1})`, wordIds);
-        await client.query(`DELETE FROM words WHERE id IN (${placeholders1})`, wordIds);
+        await client.query(`DELETE FROM word_relations WHERE user_id = $1 AND (root_word_id IN (${placeholders1}) OR child_word_id IN (${placeholders2}))`, params);
+        await client.query(`DELETE FROM error_words WHERE user_id = $1 AND word_id IN (${placeholders1})`, [userId, ...wordIds]);
+        await client.query(`DELETE FROM observation_words WHERE user_id = $1 AND word_id IN (${placeholders1})`, [userId, ...wordIds]);
+        await client.query(`DELETE FROM words WHERE user_id = $1 AND id IN (${placeholders1})`, [userId, ...wordIds]);
         
         await client.query('COMMIT');
       });
@@ -525,20 +572,30 @@ async function startServer() {
   });
 
   app.post('/api/error-words', async (req, res) => {
+    const userId = await extractUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const { wordId } = req.body;
-    const existing = await get('SELECT * FROM error_words WHERE word_id = $1', [wordId]);
+    const existing = await get('SELECT * FROM error_words WHERE user_id = $1 AND word_id = $2', [userId, wordId]);
     if (!existing) {
-      await run('INSERT INTO error_words (word_id) VALUES ($1)', [wordId]);
+      await run('INSERT INTO error_words (user_id, word_id) VALUES ($1, $2)', [userId, wordId]);
     }
     res.json({ success: true });
   });
 
   app.delete('/api/error-words/:wordId', async (req, res) => {
+    const userId = await extractUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const wordId = parseInt(req.params.wordId);
-    await run('DELETE FROM error_words WHERE word_id = $1', [wordId]);
-    const existing = await get('SELECT * FROM observation_words WHERE word_id = $1', [wordId]);
+    await run('DELETE FROM error_words WHERE user_id = $1 AND word_id = $2', [userId, wordId]);
+    const existing = await get('SELECT * FROM observation_words WHERE user_id = $1 AND word_id = $2', [userId, wordId]);
     if (!existing) {
-      await run('INSERT INTO observation_words (word_id, correct_count) VALUES ($1, 0)', [wordId]);
+      await run('INSERT INTO observation_words (user_id, word_id, correct_count) VALUES ($1, $2, 0)', [userId, wordId]);
     }
     res.json({ success: true });
   });
@@ -729,23 +786,30 @@ async function startServer() {
   });
 
   app.get('/api/words/batch-relations', async (req, res) => {
+    const userId = await extractUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const wordIds = (req.query.ids as string)?.split(',').map(id => parseInt(id)) || [];
     
     if (wordIds.length === 0) {
       return res.json({ relations: [], wordMap: {} });
     }
 
-    const placeholders = wordIds.map((_, i) => `$${i + 1}`).join(',');
+    const params = [userId, ...wordIds];
+    const placeholders = wordIds.map((_, i) => `$${i + 2}`).join(',');
     
-    const words = await all(`SELECT * FROM words WHERE id IN (${placeholders})`, wordIds);
+    const words = await all(`SELECT * FROM words WHERE user_id = $1 AND id IN (${placeholders})`, params);
     
-    const childIdsResult = await all(`SELECT child_word_id FROM word_relations WHERE root_word_id IN (${placeholders})`, wordIds);
+    const childIdsResult = await all(`SELECT child_word_id FROM word_relations WHERE user_id = $1 AND root_word_id IN (${placeholders})`, params);
     const childWordIds = childIdsResult.map((r: any) => r.child_word_id);
     
     let childWords: any[] = [];
     if (childWordIds.length > 0) {
-      const childPlaceholders = childWordIds.map((_, i) => `$${i + 1}`).join(',');
-      childWords = await all(`SELECT * FROM words WHERE id IN (${childPlaceholders})`, childWordIds);
+      const childParams = [userId, ...childWordIds];
+      const childPlaceholders = childWordIds.map((_, i) => `$${i + 2}`).join(',');
+      childWords = await all(`SELECT * FROM words WHERE user_id = $1 AND id IN (${childPlaceholders})`, childParams);
     }
     
     const allWordsData = [...words, ...childWords];
@@ -754,7 +818,7 @@ async function startServer() {
       wordMap.set(w.id, { ...w, derivatives: [], phrases: [] });
     });
     
-    const relations = await all(`SELECT * FROM word_relations WHERE root_word_id IN (${placeholders})`, wordIds);
+    const relations = await all(`SELECT * FROM word_relations WHERE user_id = $1 AND root_word_id IN (${placeholders})`, params);
     
     relations.forEach((rel: any) => {
       const child = wordMap.get(rel.child_word_id);
@@ -776,17 +840,22 @@ async function startServer() {
   });
 
   app.get('/api/words/tree', async (req, res) => {
+    const userId = await extractUserId(req);
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     const search = (req.query.search as string) || '';
 
     let allWords: any[];
     if (search) {
       const searchTerm = `%${search}%`;
-      allWords = await all('SELECT * FROM words WHERE english LIKE $1 OR chinese LIKE $2', [searchTerm, searchTerm]);
+      allWords = await all('SELECT * FROM words WHERE user_id = $1 AND (english LIKE $2 OR chinese LIKE $3)', [userId, searchTerm, searchTerm]);
     } else {
-      allWords = await all('SELECT * FROM words ORDER BY english');
+      allWords = await all('SELECT * FROM words WHERE user_id = $1 ORDER BY english', [userId]);
     }
 
-    const relations = await all('SELECT * FROM word_relations');
+    const relations = await all('SELECT * FROM word_relations WHERE user_id = $1', [userId]);
 
     const rules = await all('SELECT * FROM classification_rules WHERE active = 1 ORDER BY priority DESC');
 

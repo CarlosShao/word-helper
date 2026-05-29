@@ -85,22 +85,29 @@ const handleLogout = async () => {
       type: 'warning'
     }).then(async () => {
       setLoggingOut(true)
+      console.log('[DEBUG-APP] Set isLoggingOut = true');
       try {
         await logout()
       } catch (error) {
         console.warn('[DEBUG-APP] Logout API failed, continuing with local logout');
-      } finally {
-        console.log('[DEBUG-APP] Clearing localStorage and state');
-        localStorage.removeItem('token')
-        localStorage.removeItem('username')
-        isLoggedIn.value = false
-        username.value = ''
-        ElMessage.success(t('auth.logoutSuccess'))
-        router.push('/login')
-        setTimeout(() => {
-          setLoggingOut(false)
-        }, 2000)
       }
+      
+      console.log('[DEBUG-APP] Showing success message and navigating to login');
+      ElMessage.success(t('auth.logoutSuccess'))
+      
+      await router.push('/login')
+      
+      console.log('[DEBUG-APP] Navigation complete, clearing state');
+      localStorage.removeItem('token')
+      localStorage.removeItem('username')
+      isLoggedIn.value = false
+      username.value = ''
+      
+      setTimeout(() => {
+        console.log('[DEBUG-APP] Resetting isLoggingOut to false');
+        setLoggingOut(false)
+      }, 2000)
+      
     }).catch(() => {
       console.log('[DEBUG-APP] Logout cancelled');
       setLoggingOut(false)

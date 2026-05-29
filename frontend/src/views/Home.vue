@@ -453,7 +453,7 @@ import {
   Delete, Loading, Plus, EditPen, More
 } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import { wordApi, posApi, type Word } from '../api'
+import { wordApi, posApi, type Word, getIsLoggingOut } from '../api'
 
 const { t } = useI18n()
 
@@ -574,7 +574,10 @@ const loadWords = async () => {
     total.value = res.data.total
     words.value = res.data.words.map((w: any) => ({ ...w }))
   } catch (error) {
-    ElMessage.error(t('home.loadFailed'))
+    console.error('加载单词失败:', error)
+    if (!getIsLoggingOut()) {
+      ElMessage.error(t('home.loadFailed'))
+    }
   } finally {
     loading.value = false
   }
@@ -804,7 +807,9 @@ const loadImportLogs = async () => {
     }
   } catch (error) {
     console.error('加载导入日志失败:', error)
-    ElMessage.error(t('home.loadFailed'))
+    if (!getIsLoggingOut()) {
+      ElMessage.error(t('home.loadFailed'))
+    }
   } finally {
     loadingImportLogs.value = false
   }

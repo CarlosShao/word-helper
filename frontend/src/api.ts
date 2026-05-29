@@ -21,6 +21,8 @@ export const setLoggingOut = (value: boolean) => {
   isLoggingOut = value
 }
 
+export const getIsLoggingOut = () => isLoggingOut
+
 export const setRefreshingToken = (value: boolean) => {
   isRefreshingToken = value
 }
@@ -31,12 +33,12 @@ api.interceptors.response.use(
     const isLoginRequest = error.config?.url?.includes('/auth/login')
     const isLogoutRequest = error.config?.url?.includes('/auth/logout')
     
+    if (isLoggingOut) {
+      console.log('[DEBUG-API] Error during logout - ignoring completely')
+      return Promise.reject(error)
+    }
+    
     if (error.response?.status === 401) {
-      if (isLoggingOut) {
-        console.log('[DEBUG-API] 401 during logout - ignoring')
-        return Promise.reject(error)
-      }
-      
       if (!isLoginRequest && !isLogoutRequest && !isRefreshingToken) {
         const currentPath = router.currentRoute.value.path
         if (currentPath !== '/login') {

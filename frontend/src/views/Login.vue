@@ -37,7 +37,31 @@
             show-password
             class="login-input"
             @keyup.enter="handleLogin"
+            @input="checkPasswordStrength"
           />
+        </el-form-item>
+        
+        <el-form-item prop="captcha">
+          <div class="captcha-container">
+            <el-input
+              v-model="loginForm.captcha"
+              :placeholder="t('auth.captchaPlaceholder')"
+              size="large"
+              class="captcha-input"
+              @keyup.enter="handleLogin"
+            />
+            <img 
+              :src="captchaUrl" 
+              :alt="t('auth.captcha')"
+              class="captcha-image"
+              @click="refreshCaptcha"
+            />
+          </div>
+        </el-form-item>
+        
+        <el-form-item class="remember-me">
+          <el-checkbox v-model="loginForm.remember">{{ t('auth.rememberMe') }}</el-checkbox>
+          <a href="/forgot-password" class="forgot-password">{{ t('auth.forgotPassword') }}</a>
         </el-form-item>
         
         <el-form-item>
@@ -93,7 +117,19 @@
             show-password
             class="login-input"
             @keyup.enter="handleRegister"
+            @input="checkPasswordStrength"
           />
+          <div v-if="registerForm.password" class="password-strength">
+            <div class="strength-label">{{ t('auth.passwordStrength') }}:</div>
+            <div class="strength-bar">
+              <div 
+                class="strength-fill" 
+                :class="passwordStrengthClass"
+                :style="{ width: passwordStrengthWidth }"
+              ></div>
+            </div>
+            <div class="strength-text">{{ passwordStrengthText }}</div>
+          </div>
         </el-form-item>
         
         <el-form-item prop="confirmPassword">
@@ -107,6 +143,30 @@
             class="login-input"
             @keyup.enter="handleRegister"
           />
+        </el-form-item>
+        
+        <el-form-item prop="captcha">
+          <div class="captcha-container">
+            <el-input
+              v-model="registerForm.captcha"
+              :placeholder="t('auth.captchaPlaceholder')"
+              size="large"
+              class="captcha-input"
+              @keyup.enter="handleRegister"
+            />
+            <img 
+              :src="captchaUrl" 
+              :alt="t('auth.captcha')"
+              class="captcha-image"
+              @click="refreshCaptcha"
+            />
+          </div>
+        </el-form-item>
+        
+        <el-form-item class="agree-terms">
+          <el-checkbox v-model="registerForm.agree">
+            {{ t('auth.agreeTerms') }}
+          </el-checkbox>
         </el-form-item>
         
         <el-form-item>
@@ -123,7 +183,7 @@
         </el-form-item>
       </el-form>
       
-      <div class="divider">
+      <div v-if="isLoginMode" class="divider">
         <span>{{ t('auth.or') }}</span>
       </div>
       
@@ -143,8 +203,7 @@
       </el-form-item>
       
       <div class="mode-switch">
-        <span v-if="isLoginMode">{{ t('auth.noAccount') }}</span>
-        <span v-else>{{ t('auth.haveAccount') }}</span>
+        <span>{{ isLoginMode ? t('auth.noAccount') : t('auth.haveAccount') }}</span>
         <button type="button" class="mode-switch-btn" @click="toggleMode">
           {{ isLoginMode ? t('auth.register') : t('auth.login') }}
         </button>
@@ -170,18 +229,25 @@ const logging = ref(false)
 const registering = ref(false)
 const githubLogging = ref(false)
 const isLoginMode = ref(true)
+const captchaUrl = ref('/api/captcha?' + Date.now())
+const captchaUuid = ref('')
+const passwordStrength = ref(0)
 const { login, updateAuthState } = useAuth()
 
 const loginForm = reactive({
   username: '',
-  password: ''
+  password: '',
+  captcha: '',
+  remember: false
 })
 
 const registerForm = reactive({
   username: '',
   email: '',
   password: '',
-  confirmPassword: ''
+  confirmPassword: '',
+  captcha: '',
+  agree: false
 })
 
 const loginRules = reactive<FormRules>({
@@ -191,7 +257,11 @@ const loginRules = reactive<FormRules>({
   ],
   password: [
     { required: true, message: t('auth.passwordRequired'), trigger: 'blur' },
-    { min: 1, max: 20, message: t('auth.passwordLength'), trigger: 'blur' }
+    { min: 6, max: 20, message: t('auth.passwordLength'), trigger: 'blur' }
+  ],
+  captcha: [
+    { required: true, message: t('auth.captchaRequired'), trigger: 'blur' },
+    { min: 4, max: 4, message: t('auth.captchaLength'), trigger: 'blur' }
   ]
 })
 
@@ -220,15 +290,92 @@ const registerRules = reactive<FormRules>({
       },
       trigger: 'blur'
     }
+  ],
+  captcha: [
+    { required: true, message: t('auth.captchaRequired'), trigger: 'blur' },
+    { min: 4, max: 4, message: t('auth.captchaLength'), trigger: 'blur' }
+  ],
+  agree: [
+    { 
+      validator: (rule: any, value: boolean, callback: any) => {
+        if (!value) {
+          callback(new Error(t('auth.agreeTermsRequired')))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'change'
+    }
   ]
 })
 
+const passwordStrengthClass = ref('weak')
+const passwordStrengthWidth = ref('0%')
+const passwordStrengthText = ref('')
+
+const checkPasswordStrength = (event: any) => {
+  const password = event.target?.value || registerForm.password || loginForm.password
+  if (!password) {
+    passwordStrength.value = 0
+    passwordStrengthClass.value = 'weak'
+    passwordStrengthWidth.value = '0%'
+    passwordStrengthText.value = ''
+    return
+  }
+  
+  let score = 0
+  
+  if (password.length >= 6) score++
+  if (password.length >= 10) score++
+  if (/[a-z]/.test(password)) score++
+  if (/[A-Z]/.test(password)) score++
+  if (/[0-9]/.test(password)) score++
+  if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) score++
+  
+  passwordStrength.value = score
+  
+  if (score <= 2) {
+    passwordStrengthClass.value = 'weak'
+    passwordStrengthWidth.value = '33%'
+    passwordStrengthText.value = t('auth.passwordWeak')
+  } else if (score <= 4) {
+    passwordStrengthClass.value = 'medium'
+    passwordStrengthWidth.value = '66%'
+    passwordStrengthText.value = t('auth.passwordMedium')
+  } else {
+    passwordStrengthClass.value = 'strong'
+    passwordStrengthWidth.value = '100%'
+    passwordStrengthText.value = t('auth.passwordStrong')
+  }
+}
+
 onMounted(() => {
   updateAuthState()
+  refreshCaptcha()
 })
 
 const toggleMode = () => {
   isLoginMode.value = !isLoginMode.value
+  refreshCaptcha()
+}
+
+const refreshCaptcha = () => {
+  fetch('/api/captcha?' + Date.now())
+    .then(response => {
+      const uuid = response.headers.get('captcha-uuid')
+      if (uuid) {
+        captchaUuid.value = uuid
+      }
+      return response.blob()
+    })
+    .then(blob => {
+      captchaUrl.value = URL.createObjectURL(blob)
+      loginForm.captcha = ''
+      registerForm.captcha = ''
+    })
+    .catch(() => {
+      captchaUrl.value = '/api/captcha?' + Date.now()
+    })
 }
 
 const handleLogin = async () => {
@@ -238,22 +385,42 @@ const handleLogin = async () => {
     if (valid) {
       logging.value = true
       try {
-        const response = await fetch('/api/auth/login', {
+        const response = await fetch('/api/captcha/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: loginForm.username, password: loginForm.password })
+          body: JSON.stringify({ uuid: captchaUuid.value, code: loginForm.captcha })
         })
-        const data = await response.json()
+        const captchaResult = await response.json()
+        
+        if (!captchaResult.success) {
+          ElMessage.error(captchaResult.message)
+          refreshCaptcha()
+          logging.value = false
+          return
+        }
+        
+        const loginResponse = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            email: loginForm.username, 
+            password: loginForm.password,
+            remember: loginForm.remember
+          })
+        })
+        const data = await loginResponse.json()
         
         if (data.success) {
-          login(data.token, data.username)
+          login(data.token, data.username, loginForm.remember)
           ElMessage.success(t('auth.loginSuccess'))
           router.push('/')
         } else {
           ElMessage.error(data.message || t('auth.loginFailed'))
+          refreshCaptcha()
         }
       } catch (error) {
         ElMessage.error(t('auth.networkError'))
+        refreshCaptcha()
       } finally {
         logging.value = false
       }
@@ -268,7 +435,21 @@ const handleRegister = async () => {
     if (valid) {
       registering.value = true
       try {
-        const response = await fetch('/api/auth/register', {
+        const response = await fetch('/api/captcha/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uuid: captchaUuid.value, code: registerForm.captcha })
+        })
+        const captchaResult = await response.json()
+        
+        if (!captchaResult.success) {
+          ElMessage.error(captchaResult.message)
+          refreshCaptcha()
+          registering.value = false
+          return
+        }
+        
+        const registerResponse = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -277,7 +458,7 @@ const handleRegister = async () => {
             password: registerForm.password
           })
         })
-        const data = await response.json()
+        const data = await registerResponse.json()
         
         if (data.success) {
           ElMessage.success(data.message || t('auth.registerSuccess'))
@@ -286,11 +467,16 @@ const handleRegister = async () => {
           registerForm.email = ''
           registerForm.password = ''
           registerForm.confirmPassword = ''
+          registerForm.captcha = ''
+          registerForm.agree = false
+          refreshCaptcha()
         } else {
           ElMessage.error(data.message || t('auth.registerFailed'))
+          refreshCaptcha()
         }
       } catch (error) {
         ElMessage.error(t('auth.networkError'))
+        refreshCaptcha()
       } finally {
         registering.value = false
       }
@@ -398,6 +584,115 @@ const handleGitHubLogin = async () => {
 .login-input :deep(.el-input__wrapper.is-focus) {
   background: #fff;
   box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
+}
+
+.captcha-container {
+  display: flex;
+  gap: 12px;
+}
+
+.captcha-input {
+  flex: 1;
+}
+
+.captcha-input :deep(.el-input__wrapper) {
+  border-radius: 10px;
+  padding: 6px 16px;
+  background: #f5f7fa;
+}
+
+.captcha-image {
+  width: 100px;
+  height: 40px;
+  border-radius: 10px;
+  cursor: pointer;
+  background: #f5f7fa;
+}
+
+.password-strength {
+  margin-top: 8px;
+}
+
+.strength-label {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+
+.strength-bar {
+  height: 6px;
+  background: #e4e7ed;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.strength-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: all 0.3s ease;
+}
+
+.strength-fill.weak {
+  background: #f56c6c;
+}
+
+.strength-fill.medium {
+  background: #e6a23c;
+}
+
+.strength-fill.strong {
+  background: #67c23a;
+}
+
+.strength-text {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.strength-text.weak,
+.strength-fill.weak + .strength-text {
+  color: #f56c6c;
+}
+
+.strength-text.medium,
+.strength-fill.medium + .strength-text {
+  color: #e6a23c;
+}
+
+.strength-text.strong,
+.strength-fill.strong + .strength-text {
+  color: #67c23a;
+}
+
+.remember-me {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.remember-me :deep(.el-checkbox__label) {
+  font-size: 14px;
+  color: #606266;
+}
+
+.forgot-password {
+  font-size: 14px;
+  color: #667eea;
+  text-decoration: none;
+}
+
+.forgot-password:hover {
+  text-decoration: underline;
+}
+
+.agree-terms {
+  margin-bottom: 8px;
+}
+
+.agree-terms :deep(.el-checkbox__label) {
+  font-size: 13px;
+  color: #909399;
 }
 
 .login-btn {

@@ -7,6 +7,8 @@ import { initDb, run, all, get, withClient, batchInsert, batchUpdate, batchDelet
 import { parsePdf } from './pdfParser';
 import { authRouter, getUserIdFromToken } from './auth';
 
+const captchaStore = new Map<string, { code: string; expiresAt: number }>();
+
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
@@ -45,6 +47,83 @@ app.use(express.json());
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+function generateCaptchaCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+function generateCaptchaImage(code: string): string {
+  const width = 120;
+  const height = 40;
+  const fontSize = 24;
+  const chars = code.split('');
+  
+  let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+  svg += `<rect width="${width}" height="${height}" fill="#f5f5f5" rx="4"/>`;
+  
+  chars.forEach((char, index) => {
+    const x = 15 + index * 25;
+    const y = height / 2 + fontSize / 3;
+    const rotate = (Math.random() - 0.5) * 30;
+    const color = `rgb(${Math.floor(Math.random() * 100) + 50}, ${Math.floor(Math.random() * 100) + 50}, ${Math.floor(Math.random() * 100) + 50})`;
+    svg += `<text x="${x}" y="${y}" font-size="${fontSize}" font-weight="bold" fill="${color}" transform="rotate(${rotate}, ${x}, ${y})" text-anchor="middle">${char}</text>`;
+  });
+  
+  for (let i = 0; i < 4; i++) {
+    const x1 = Math.random() * width;
+    const y1 = Math.random() * height;
+    const x2 = Math.random() * width;
+    const y2 = Math.random() * height;
+    svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#ddd" stroke-width="1"/>`;
+  }
+  
+  svg += '</svg>';
+  return svg;
+}
+
+app.get('/api/captcha', (req, res) => {
+  const code = generateCaptchaCode();
+  const svg = generateCaptchaImage(code);
+  const uuid = Math.random().toString(36).substring(2, 15);
+  const expiresAt = Date.now() + 5 * 60 * 1000;
+  
+  captchaStore.set(uuid, { code: code.toLowerCase(), expiresAt });
+  
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.setHeader('captcha-uuid', uuid);
+  res.send(svg);
+});
+
+app.post('/api/captcha/verify', (req, res) => {
+  const { uuid, code } = req.body;
+  
+  if (!uuid || !code) {
+    return res.json({ success: false, message: '请输入验证码' });
+  }
+  
+  const captcha = captchaStore.get(uuid);
+  
+  if (!captcha) {
+    return res.json({ success: false, message: '验证码已过期，请刷新' });
+  }
+  
+  if (Date.now() > captcha.expiresAt) {
+    captchaStore.delete(uuid);
+    return res.json({ success: false, message: '验证码已过期，请刷新' });
+  }
+  
+  if (code.toLowerCase() === captcha.code) {
+    captchaStore.delete(uuid);
+    return res.json({ success: true });
+  }
+  
+  return res.json({ success: false, message: '验证码错误' });
 });
 
 async function startServer() {

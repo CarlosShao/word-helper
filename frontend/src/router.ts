@@ -7,9 +7,7 @@ import Practice from './views/Practice.vue'
 import ErrorWords from './views/ErrorWords.vue'
 import YesterdayErrors from './views/YesterdayErrors.vue'
 import Settings from './views/Settings.vue'
-import { useAuth } from './composables/useAuth'
 import { ElMessage } from 'element-plus'
-import { useI18n } from 'vue-i18n'
 
 const routes = [
   { path: '/login', component: Login },
@@ -27,13 +25,33 @@ const router = createRouter({
   routes
 })
 
+const validateToken = async (token: string): Promise<boolean> => {
+  try {
+    const response = await fetch('/api/auth/validate', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    if (!response.ok) {
+      return false
+    }
+    const data = await response.json()
+    return data.success === true
+  } catch (error) {
+    return false
+  }
+}
+
+const clearAuthState = () => {
+  localStorage.removeItem('token')
+  localStorage.removeItem('username')
+}
+
 router.beforeEach(async (to, from, next) => {
   console.log('[DEBUG-ROUTER] ====== ROUTER GUARD ======');
   console.log('[DEBUG-ROUTER] Navigating from:', from.path, 'to:', to.path);
   console.log('[DEBUG-ROUTER] Query params:', JSON.stringify(to.query));
-  
-  const { t } = useI18n()
-  const { login, logout, validateToken, isLoggedIn } = useAuth()
   
   const githubToken = to.query.github_token as string
   const username = to.query.username as string
@@ -43,7 +61,10 @@ router.beforeEach(async (to, from, next) => {
     console.log('[DEBUG-ROUTER] Token:', githubToken.substring(0, 30) + '...');
     console.log('[DEBUG-ROUTER] Username:', username);
     
-    login(githubToken, username || '')
+    localStorage.setItem('token', githubToken)
+    if (username) {
+      localStorage.setItem('username', username)
+    }
     
     const maxRetries = 5
     let retryCount = 0
@@ -76,10 +97,12 @@ router.beforeEach(async (to, from, next) => {
       next('/login')
     } else {
       console.log('[DEBUG-ROUTER] Token exists, validating...');
-      const isValid = await validateToken()
+      const isValid = await validateToken(token)
       if (!isValid) {
         console.log('[DEBUG-ROUTER] Token invalid or expired - redirecting to /login');
-        ElMessage.warning(t('auth.loginExpired'))
+        clearAuthState()
+        const i18nMessage = window.__i18n?.t('auth.loginExpired') || 'Login expired, please login again'
+        ElMessage.warning(i18nMessage)
         next('/login')
       } else {
         console.log('[DEBUG-ROUTER] Token valid, allowing navigation');

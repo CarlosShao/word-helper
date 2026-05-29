@@ -78,7 +78,7 @@
             type="email"
             :placeholder="t('auth.emailPlaceholder')"
             size="large"
-            :prefix-icon="Mail"
+            :prefix-icon="Message"
             class="login-input"
           />
         </el-form-item>
@@ -158,7 +158,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Reading, User, Lock, Unlock, Mail, UserPlus } from '@element-plus/icons-vue'
+import { Reading, User, Lock, Unlock, Message, UserPlus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useAuth } from '../composables/useAuth'
 

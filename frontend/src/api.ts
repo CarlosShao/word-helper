@@ -14,15 +14,28 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+let isLoggingOut = false
+let isRefreshingToken = false
+
+export const setLoggingOut = (value: boolean) => {
+  isLoggingOut = value
+}
+
+export const setRefreshingToken = (value: boolean) => {
+  isRefreshingToken = value
+}
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     const isLoginRequest = error.config?.url?.includes('/auth/login')
-    if (error.response?.status === 401 && !isLoginRequest) {
+    const isLogoutRequest = error.config?.url?.includes('/auth/logout')
+    
+    if (error.response?.status === 401 && !isLoginRequest && !isLogoutRequest && !isLoggingOut && !isRefreshingToken) {
       localStorage.removeItem('token')
       localStorage.removeItem('username')
-      const isLoggedIn = document.querySelector('.app-container')
-      if (!isLoggedIn) {
+      const appContainer = document.querySelector('.app-container')
+      if (!appContainer) {
         ElMessage.warning(window.__i18n?.t('auth.loginExpired') || '登录已过期，请重新登录')
       }
       router.push('/login')

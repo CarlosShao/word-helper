@@ -26,7 +26,7 @@ router.post('/login', async (req, res) => {
     console.log('[DEBUG-LOGIN] Login attempt for email:', email);
     
     if (!email || !password) {
-      return res.status(400).json({ success: false, message: '请填写用户名/邮箱和密码' });
+      return res.status(400).json({ success: false, message: 'Please fill in username/email and password' });
     }
     
     const hashedPassword = hashPassword(password);
@@ -34,7 +34,7 @@ router.post('/login', async (req, res) => {
     console.log('[DEBUG-LOGIN] User found:', user ? `id=${user.id}, username=${user.username}` : 'none');
     
     if (!user) {
-      return res.status(401).json({ success: false, message: '用户名/邮箱或密码错误' });
+      return res.status(401).json({ success: false, message: 'Username/email or password is incorrect' });
     }
     
     const expiresDays = remember ? 30 : 7;
@@ -48,7 +48,7 @@ router.post('/login', async (req, res) => {
     res.json({ success: true, token, username: user.username });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ success: false, message: '登录失败' });
+    res.status(500).json({ success: false, message: 'Login failed' });
   }
 });
 
@@ -57,16 +57,16 @@ router.post('/register', async (req, res) => {
     const { username, email, password } = req.body;
     
     if (!username || !email || !password) {
-      return res.status(400).json({ success: false, message: '请填写所有字段' });
+      return res.status(400).json({ success: false, message: 'Please fill in all fields' });
     }
     
     if (password.length < 6) {
-      return res.status(400).json({ success: false, message: '密码长度至少6位' });
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
     }
     
     const existingUser = await get('SELECT id FROM users WHERE email = $1 OR username = $2', [email, username]);
     if (existingUser) {
-      return res.status(400).json({ success: false, message: '邮箱或用户名已存在' });
+      return res.status(400).json({ success: false, message: 'Email or username already exists' });
     }
     
     const hashedPassword = hashPassword(password);
@@ -75,10 +75,10 @@ router.post('/register', async (req, res) => {
       [username, email, hashedPassword]
     );
     
-    res.json({ success: true, message: '注册成功，请登录' });
+    res.json({ success: true, message: 'Registration successful, please login' });
   } catch (error) {
     console.error('Register error:', error);
-    res.status(500).json({ success: false, message: '注册失败' });
+    res.status(500).json({ success: false, message: 'Registration failed' });
   }
 });
 
@@ -87,12 +87,12 @@ router.post('/forgot-password', async (req, res) => {
     const { email } = req.body;
     
     if (!email) {
-      return res.status(400).json({ success: false, message: '请填写邮箱' });
+      return res.status(400).json({ success: false, message: 'Please enter email' });
     }
     
     const user = await get('SELECT id, username FROM users WHERE email = $1', [email]);
     if (!user) {
-      return res.json({ success: true, message: '如果该邮箱存在，已发送重置链接' });
+      return res.json({ success: true, message: 'If this email exists, a reset link has been sent' });
     }
     
     const token = generateToken();
@@ -115,23 +115,23 @@ router.post('/forgot-password', async (req, res) => {
     const mailOptions = {
       from: process.env.SMTP_FROM || 'noreply@example.com',
       to: email,
-      subject: 'Word Helper - 重置密码',
+      subject: 'Word Helper - Reset Password',
       html: `
-        <p>您好 ${user.username}，</p>
-        <p>您请求重置密码，请点击以下链接完成重置：</p>
-        <p><a href="${resetLink}" style="display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 4px;">重置密码</a></p>
-        <p>链接有效期为1小时。</p>
-        <p>如果不是您本人操作，请忽略此邮件。</p>
-        <p>Word Helper 团队</p>
+        <p>Hello ${user.username},</p>
+        <p>You requested a password reset. Please click the link below to reset your password:</p>
+        <p><a href="${resetLink}" style="display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 4px;">Reset Password</a></p>
+        <p>The link is valid for 1 hour.</p>
+        <p>If this wasn't you, please ignore this email.</p>
+        <p>Word Helper Team</p>
       `
     };
     
     await transporter.sendMail(mailOptions);
     
-    res.json({ success: true, message: '重置链接已发送到您的邮箱' });
+    res.json({ success: true, message: 'Reset link has been sent to your email' });
   } catch (error) {
     console.error('Forgot password error:', error);
-    res.status(500).json({ success: false, message: '发送失败，请稍后重试' });
+    res.status(500).json({ success: false, message: 'Failed to send, please try again later' });
   }
 });
 
@@ -140,11 +140,11 @@ router.post('/reset-password', async (req, res) => {
     const { token, password } = req.body;
     
     if (!token || !password) {
-      return res.status(400).json({ success: false, message: '参数错误' });
+      return res.status(400).json({ success: false, message: 'Invalid parameters' });
     }
     
     if (password.length < 6) {
-      return res.status(400).json({ success: false, message: '密码长度至少6位' });
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
     }
     
     const resetRecord = await get(
@@ -153,7 +153,7 @@ router.post('/reset-password', async (req, res) => {
     );
     
     if (!resetRecord) {
-      return res.status(400).json({ success: false, message: '重置链接无效或已过期' });
+      return res.status(400).json({ success: false, message: 'Reset link is invalid or expired' });
     }
     
     const hashedPassword = hashPassword(password);
@@ -161,10 +161,10 @@ router.post('/reset-password', async (req, res) => {
       [hashedPassword, resetRecord.email]);
     await run('UPDATE password_resets SET used = 1 WHERE token = $1', [token]);
     
-    res.json({ success: true, message: '密码重置成功' });
+    res.json({ success: true, message: 'Password reset successful' });
   } catch (error) {
     console.error('Reset password error:', error);
-    res.status(500).json({ success: false, message: '重置失败' });
+    res.status(500).json({ success: false, message: 'Reset failed' });
   }
 });
 
@@ -175,7 +175,7 @@ router.get('/validate', async (req, res) => {
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     console.log('[DEBUG-VALIDATE] No valid auth header - returning 401');
-    return res.status(401).json({ success: false, error: '未授权' });
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
   }
   
   const token = authHeader.substring(7);
@@ -187,7 +187,7 @@ router.get('/validate', async (req, res) => {
   
   if (!userId) {
     console.log('[DEBUG-VALIDATE] No userId found for token - returning 401');
-    return res.status(401).json({ success: false, error: '无效的token' });
+    return res.status(401).json({ success: false, error: 'Invalid token' });
   }
   
   const user = await get('SELECT id, username, email FROM users WHERE id = $1', [userId]);
@@ -198,28 +198,28 @@ router.get('/validate', async (req, res) => {
     res.json({ success: true, username: user.username, userId: user.id });
   } else {
     console.log('[DEBUG-VALIDATE] User not found in DB - returning 404');
-    res.status(404).json({ success: false, error: '用户不存在' });
+    res.status(404).json({ success: false, error: 'User not found' });
   }
 });
 
 router.get('/profile', async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, error: '未授权' });
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
   }
   
   const token = authHeader.substring(7);
   const userId = await getUserIdFromToken(token);
   
   if (!userId) {
-    return res.status(401).json({ success: false, error: '无效的token' });
+    return res.status(401).json({ success: false, error: 'Invalid token' });
   }
 
   const user = await get('SELECT id, username, email, avatar_url, provider, created_at FROM users WHERE id = $1', [userId]);
   if (user) {
     res.json({ success: true, user });
   } else {
-    res.status(404).json({ success: false, error: '用户不存在' });
+    res.status(404).json({ success: false, error: 'User not found' });
   }
 });
 

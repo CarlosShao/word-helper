@@ -250,7 +250,10 @@
     "clearFailed": "Clear failed",
     "resumeProgress": "Last practice completed {completed}, skipped {skipped}, continuing from word {index}",
     "enterAnswer": "Please enter answer",
-    "answer": "Answer"
+    "answer": "Answer",
+    "saveProgressTable": "Saved progress starting from word {index}",
+    "progressSaved": "Progress saved",
+    "saveFailed": "Failed to save progress"
   },
   "errorWords": {
     "title": "Error Words",
@@ -268,8 +271,8 @@
     "operationFailed": "Operation failed"
   },
   "yesterdayErrors": {
-    "title": "Yesterday's Error Words",
-    "noYesterdayErrors": "No yesterday's errors",
-    "practiceYesterdayErrors": "Practice Yesterday's Errors"
+    "title": "Review Yesterday's Errors",
+    "noYesterdayErrors": "No errors from yesterday, keep up the good work!",
+    "practiceYesterdayErrors": "Keep going, improve a little every day"
   }
 }

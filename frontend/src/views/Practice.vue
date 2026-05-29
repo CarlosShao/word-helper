@@ -129,6 +129,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   EditPen, CaretRight, FolderChecked, Edit, Check, View, ArrowRight, 
@@ -139,6 +140,7 @@ import { useRoute } from 'vue-router'
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 
 // 核心数据
 const words = ref<Word[]>([])
@@ -197,7 +199,7 @@ const loadWords = async () => {
     
     words.value = allWords
   } catch (error) {
-    ElMessage.error('加载单词失败')
+    ElMessage.error(t('home.loadFailed'))
   }
 }
 
@@ -256,12 +258,12 @@ const saveProgress = async () => {
     await wordApi.saveSetting(`${prefix}SkipCount`, skipCount.value.toString())
     
     if (isTablePractice) {
-      ElMessage.success(`已保存从第${fromIndex.value + 1}个词开始的练习进度`)
+      ElMessage.success(t('practice.saveProgressTable', { index: fromIndex.value + 1 }))
     } else {
-      ElMessage.success('进度已保存')
+      ElMessage.success(t('practice.progressSaved'))
     }
   } catch (error) {
-    ElMessage.error('保存进度失败')
+    ElMessage.error(t('practice.saveFailed'))
   }
 }
 
@@ -363,7 +365,7 @@ const startPractice = async () => {
   // 然后加载单词数据
   await loadWords()
   if (words.value.length === 0) {
-    ElMessage.warning('请先导入单词')
+    ElMessage.warning(t('practice.noWords'))
     router.push('/')
     return
   }
@@ -458,7 +460,7 @@ const skipWord = async () => {
   if (currentIndex.value >= words.value.length) {
     currentIndex.value = 0
     await autoSaveProgress()
-    ElMessage.success('恭喜完成一轮练习！')
+    ElMessage.success(t('practice.complete'))
     if (sessionId.value) {
       try {
         await wordApi.endPractice(sessionId.value)

@@ -104,18 +104,18 @@ app.post('/api/captcha/verify', (req, res) => {
   const { uuid, code } = req.body;
   
   if (!uuid || !code) {
-    return res.json({ success: false, message: '请输入验证码' });
+    return res.json({ success: false, message: 'Please enter captcha' });
   }
   
   const captcha = captchaStore.get(uuid);
   
   if (!captcha) {
-    return res.json({ success: false, message: '验证码已过期，请刷新' });
+    return res.json({ success: false, message: 'Captcha expired, please refresh' });
   }
   
   if (Date.now() > captcha.expiresAt) {
     captchaStore.delete(uuid);
-    return res.json({ success: false, message: '验证码已过期，请刷新' });
+    return res.json({ success: false, message: 'Captcha expired, please refresh' });
   }
   
   if (code.toLowerCase() === captcha.code) {
@@ -123,7 +123,7 @@ app.post('/api/captcha/verify', (req, res) => {
     return res.json({ success: true });
   }
   
-  return res.json({ success: false, message: '验证码错误' });
+  return res.json({ success: false, message: 'Invalid captcha' });
 });
 
 async function startServer() {

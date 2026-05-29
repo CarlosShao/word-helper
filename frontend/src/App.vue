@@ -56,6 +56,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { User, SwitchButton, More, Tools } from '@element-plus/icons-vue'
 import { useAuth } from './composables/useAuth'
 import { useAppearance } from './composables/useAppearance'
+import { setLoggingOut } from './api'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -77,27 +78,34 @@ watch(() => route.path, () => {
 })
 
 const handleLogout = async () => {
-  console.log('[DEBUG-APP] Logout button clicked');
-  ElMessageBox.confirm(t('auth.logoutConfirm'), t('common.warning'), {
-    confirmButtonText: t('common.confirm'),
-    cancelButtonText: t('common.cancel'),
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await logout()
-    } finally {
-      console.log('[DEBUG-APP] Clearing localStorage and state');
-      localStorage.removeItem('token')
-      localStorage.removeItem('username')
-      isLoggedIn.value = false
-      username.value = ''
-      ElMessage.success(t('auth.logoutSuccess'))
-      router.push('/login')
-    }
-  }).catch(() => {
-    console.log('[DEBUG-APP] Logout cancelled');
-  })
-}
+    console.log('[DEBUG-APP] Logout button clicked');
+    ElMessageBox.confirm(t('auth.logoutConfirm'), t('common.warning'), {
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
+      type: 'warning'
+    }).then(async () => {
+      setLoggingOut(true)
+      try {
+        await logout()
+      } catch (error) {
+        console.warn('[DEBUG-APP] Logout API failed, continuing with local logout');
+      } finally {
+        console.log('[DEBUG-APP] Clearing localStorage and state');
+        localStorage.removeItem('token')
+        localStorage.removeItem('username')
+        isLoggedIn.value = false
+        username.value = ''
+        ElMessage.success(t('auth.logoutSuccess'))
+        router.push('/login')
+        setTimeout(() => {
+          setLoggingOut(false)
+        }, 2000)
+      }
+    }).catch(() => {
+      console.log('[DEBUG-APP] Logout cancelled');
+      setLoggingOut(false)
+    })
+  }
 </script>
 
 <style>

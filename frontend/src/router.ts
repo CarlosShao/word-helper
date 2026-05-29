@@ -9,6 +9,7 @@ import YesterdayErrors from './views/YesterdayErrors.vue'
 import Settings from './views/Settings.vue'
 import { useAuth } from './composables/useAuth'
 import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 
 const routes = [
   { path: '/login', component: Login },
@@ -31,7 +32,8 @@ router.beforeEach(async (to, from, next) => {
   console.log('[DEBUG-ROUTER] Navigating from:', from.path, 'to:', to.path);
   console.log('[DEBUG-ROUTER] Query params:', JSON.stringify(to.query));
   
-  const { login, logout, validateToken } = useAuth()
+  const { t } = useI18n()
+  const { login, logout, validateToken, isLoggedIn } = useAuth()
   
   const githubToken = to.query.github_token as string
   const username = to.query.username as string
@@ -42,8 +44,26 @@ router.beforeEach(async (to, from, next) => {
     console.log('[DEBUG-ROUTER] Username:', username);
     
     login(githubToken, username || '')
-    console.log('[DEBUG-ROUTER] Calling login() and redirecting to /');
-    next({ path: '/', query: {} })
+    
+    const maxRetries = 5
+    let retryCount = 0
+    let tokenSaved = false
+    
+    while (retryCount < maxRetries && !tokenSaved) {
+      await new Promise(resolve => setTimeout(resolve, 200))
+      const currentToken = localStorage.getItem('token')
+      if (currentToken) {
+        tokenSaved = true
+        console.log('[DEBUG-ROUTER] Login successful on attempt', retryCount + 1);
+        next({ path: '/', query: {} })
+      }
+      retryCount++
+    }
+    
+    if (!tokenSaved) {
+      console.log('[DEBUG-ROUTER] Login failed after', maxRetries, 'attempts, redirecting to /login');
+      next('/login')
+    }
     return
   }
 
@@ -59,7 +79,7 @@ router.beforeEach(async (to, from, next) => {
       const isValid = await validateToken()
       if (!isValid) {
         console.log('[DEBUG-ROUTER] Token invalid or expired - redirecting to /login');
-        ElMessage.warning('登录已过期，请重新登录')
+        ElMessage.warning(t('auth.loginExpired'))
         next('/login')
       } else {
         console.log('[DEBUG-ROUTER] Token valid, allowing navigation');

@@ -248,7 +248,10 @@
     "clearFailed": "清除失败",
     "resumeProgress": "上次练习已完成{completed}个，跳过{skipped}个，现在从第{index}个词继续",
     "enterAnswer": "请输入答案",
-    "answer": "答案"
+    "answer": "答案",
+    "saveProgressTable": "已保存从第{index}个词开始的练习进度",
+    "progressSaved": "进度已保存",
+    "saveFailed": "保存进度失败"
   },
   "errorWords": {
     "title": "错题集",
@@ -267,7 +270,7 @@
   },
   "yesterdayErrors": {
     "title": "昨日错词巩固",
-    "noYesterdayErrors": "昨日无错题",
-    "practiceYesterdayErrors": "练习昨日错题"
+    "noYesterdayErrors": "昨日无错题，继续保持！",
+    "practiceYesterdayErrors": "继续保持，每天进步一点点"
   }
 }

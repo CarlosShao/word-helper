@@ -5,17 +5,17 @@
         <div class="card-header">
           <div class="header-left">
             <el-icon class="header-icon"><Calendar /></el-icon>
-            <span>昨日错词巩固</span>
+            <span>{{ t('yesterdayErrors.title') }}</span>
             <el-tag v-if="words.length > 0" type="warning" size="small" style="margin-left: 12px;">
-              {{ words.length }} 词
+              {{ words.length }} {{ t('errorWords.item') }}
             </el-tag>
           </div>
         </div>
       </template>
 
       <div v-if="words.length === 0" class="empty-state">
-        <el-empty description="暂无错词，继续保持！">
-          <el-button type="primary" @click="$router.push('/')">去练习</el-button>
+        <el-empty :description="t('yesterdayErrors.noYesterdayErrors')">
+          <el-button type="primary" @click="$router.push('/')">{{ t('errorWords.goPractice') }}</el-button>
         </el-empty>
       </div>
 
@@ -28,18 +28,18 @@
               :stroke-width="8"
             />
             <div class="progress-info">
-              <span class="progress-text">进度</span>
-              <span class="progress-count">{{ currentIndex + 1 }} / {{ words.length }}</span>
-            </div>
+            <span class="progress-text">{{ t('practice.progress') }}</span>
+            <span class="progress-count">{{ currentIndex + 1 }} / {{ words.length }}</span>
+          </div>
           </div>
           <div class="word-display">
-            <div class="word-label">中文释义</div>
+            <div class="word-label">{{ t('practice.chineseMeaning') }}</div>
             <h3 class="chinese">{{ currentWord.chinese }}</h3>
             <el-tag size="small" type="info">{{ currentWord.part_of_speech }}</el-tag>
           </div>
           <el-input
             v-model="userAnswer"
-            placeholder="请输入英文单词..."
+            :placeholder="t('practice.enterWord')"
             size="large"
             @keyup.enter="checkAnswer"
             class="answer-input"
@@ -51,11 +51,11 @@
           <div class="btn-group">
             <el-button type="primary" @click="checkAnswer">
               <el-icon style="margin-right: 6px;"><Check /></el-icon>
-              提交
+              {{ t('practice.submit') }}
             </el-button>
             <el-button @click="showAnswer">
               <el-icon><View /></el-icon>
-              显示答案
+              {{ t('practice.showAnswer') }}
             </el-button>
           </div>
           <transition name="fade">
@@ -64,11 +64,11 @@
                 <el-icon v-if="isCorrect" :size="40"><CircleCheckFilled /></el-icon>
                 <el-icon v-else :size="40"><CircleCloseFilled /></el-icon>
               </div>
-              <span class="result-text">{{ isCorrect ? '回答正确！' : '回答错误' }}</span>
-              <p v-if="!isCorrect" class="correct-answer">正确答案: <strong>{{ currentWord.english }}</strong></p>
+              <span class="result-text">{{ isCorrect ? t('practice.correct') : t('practice.incorrect') }}</span>
+              <p v-if="!isCorrect" class="correct-answer">{{ t('practice.correctAnswer') }}: <strong>{{ currentWord.english }}</strong></p>
               <el-button :type="isCorrect ? 'success' : 'primary'" @click="nextWord" class="result-btn">
                 <el-icon style="margin-right: 6px;"><Right /></el-icon>
-                继续
+                {{ t('practice.nextWord') }}
               </el-button>
             </div>
           </transition>
@@ -77,11 +77,11 @@
           <div class="complete-icon">
             <el-icon :size="60"><CircleCheckFilled /></el-icon>
           </div>
-          <h2>恭喜完成昨日错词巩固！</h2>
-          <p class="complete-tip">继续保持，每天进步一点点</p>
+          <h2>{{ t('practice.complete') }}</h2>
+          <p class="complete-tip">{{ t('yesterdayErrors.practiceYesterdayErrors') }}</p>
           <el-button type="primary" @click="restart">
             <el-icon style="margin-right: 6px;"><RefreshRight /></el-icon>
-            再练一次
+            {{ t('practice.restart') }}
           </el-button>
         </div>
       </div>
@@ -91,12 +91,15 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { 
   Calendar, Edit, Check, View, Right, 
   CircleCheckFilled, CircleCloseFilled, RefreshRight 
 } from '@element-plus/icons-vue'
 import { wordApi, type Word } from '../api'
+
+const { t } = useI18n()
 
 const words = ref<Word[]>([])
 const currentIndex = ref(0)
@@ -106,17 +109,20 @@ const showResult = ref(false)
 const isCorrect = ref(false)
 
 const loadWords = async () => {
-  // 昨日错词就是上次练习会话中的错题
-  const res = await wordApi.getYesterdayErrors()
-  words.value = res.data.words || []
-  if (words.value.length > 0) {
-    currentWord.value = words.value[0]
+  try {
+    const res = await wordApi.getYesterdayErrors()
+    words.value = res.data.words || []
+    if (words.value.length > 0) {
+      currentWord.value = words.value[0]
+    }
+  } catch (error) {
+    ElMessage.error(t('errorWords.loadFailed'))
   }
 }
 
 const checkAnswer = async () => {
   if (!userAnswer.value.trim()) {
-    ElMessage.warning('请输入答案')
+    ElMessage.warning(t('practice.enterAnswer'))
     return
   }
 
@@ -124,16 +130,14 @@ const checkAnswer = async () => {
   showResult.value = true
 
   if (isCorrect.value) {
-    // 答对了，从错题集移除，加入观察室
     await wordApi.removeErrorWord(currentWord.value!.id)
   } else {
-    // 答错了，保持在错题集
     await wordApi.addErrorWord(currentWord.value!.id)
   }
 }
 
 const showAnswer = () => {
-  ElMessage.info(`答案: ${currentWord.value?.english}`)
+  ElMessage.info(t('practice.answer') + ': ' + currentWord.value?.english)
 }
 
 const nextWord = async () => {

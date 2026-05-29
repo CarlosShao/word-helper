@@ -787,9 +787,14 @@ const showImportLogs = async () => {
 const loadImportLogs = async () => {
   loadingImportLogs.value = true
   try {
+    const token = localStorage.getItem('token')
     const [statsRes, errorsRes] = await Promise.all([
-      fetch('/api/import-stats').then(r => r.json()),
-      fetch('/api/import-errors').then(r => r.json())
+      fetch('/api/import-stats', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      }).then(r => r.json()),
+      fetch('/api/import-errors', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      }).then(r => r.json())
     ])
     if (statsRes.success) {
       importStats.value = statsRes.imports
@@ -799,7 +804,7 @@ const loadImportLogs = async () => {
     }
   } catch (error) {
     console.error('加载导入日志失败:', error)
-    ElMessage.error('加载导入日志失败')
+    ElMessage.error(t('home.loadFailed'))
   } finally {
     loadingImportLogs.value = false
   }
@@ -838,10 +843,10 @@ const saveEdit = async () => {
       chinese: editingField.value === 'chinese' ? editingValue.value : row.chinese
     }
     await wordApi.updateWord(editingId.value, data)
-    ElMessage.success('保存成功')
+    ElMessage.success(t('home.saveEditSuccess'))
     await loadWords()
   } catch (error) {
-    ElMessage.error('保存失败')
+    ElMessage.error(t('home.saveEditFailed'))
   }
   editingId.value = null
   editingField.value = ''

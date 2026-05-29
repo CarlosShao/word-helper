@@ -10,18 +10,37 @@ const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const db_1 = require("./db");
 const pdfParser_1 = require("./pdfParser");
+const auth_1 = require("./auth");
 const app = (0, express_1.default)();
-const PORT = process.env.PORT || 7860;
-app.use((0, cors_1.default)());
+const PORT = parseInt(process.env.PORT || '3000', 10);
+const corsOptions = {
+    origin: function (origin, callback) {
+        const allowedOrigins = [
+            'http://localhost:3000',
+            'http://localhost:5173',
+            /\.onrender\.com$/,
+            /\.vercel\.app$/,
+            /\.netlify\.app$/
+        ];
+        if (!origin || allowedOrigins.some((pattern) => typeof pattern === 'string' ? origin === pattern : pattern.test(origin))) {
+            callback(null, true);
+        }
+        else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+};
+app.use((0, cors_1.default)(corsOptions));
 app.use(express_1.default.json());
-// 初始化数据库
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 async function startServer() {
     await (0, db_1.initDb)();
-    // 托管前端静态文件
     const staticDir = path_1.default.join(__dirname, '../public');
     if (fs_1.default.existsSync(staticDir)) {
         app.use(express_1.default.static(staticDir));
-        // SPA fallback
         app.get('*', (req, res, next) => {
             if (req.path.startsWith('/api')) {
                 return next();
@@ -29,11 +48,9 @@ async function startServer() {
             res.sendFile(path_1.default.join(staticDir, 'index.html'));
         });
     }
-    // 确保uploads目录存在
     const uploadsDir = path_1.default.join(__dirname, '../uploads');
     if (!fs_1.default.existsSync(uploadsDir))
         fs_1.default.mkdirSync(uploadsDir, { recursive: true });
-    // 配置文件上传
     const storage = multer_1.default.diskStorage({
         destination: (req, file, cb) => {
             cb(null, uploadsDir);
@@ -43,20 +60,7 @@ async function startServer() {
         }
     });
     const upload = (0, multer_1.default)({ storage });
-    // API 路由
-    // 登录接口
-    app.post('/api/login', (req, res) => {
-        const { username, password } = req.body;
-        if (username === 'carlos' && password === 'swq') {
-            // 生成简单的token
-            const token = Buffer.from(`${username}:${Date.now()}`).toString('base64');
-            res.json({ success: true, token, username });
-        }
-        else {
-            res.status(401).json({ success: false, message: '用户名或密码错误' });
-        }
-    });
-    // 导入PDF文件
+    app.use('/api/auth', auth_1.authRouter);
     app.post('/api/import', upload.single('file'), async (req, res) => {
         try {
             console.log('[Import] Starting import process...');
@@ -69,18 +73,15 @@ async function startServer() {
             const { words, errors } = parseResult;
             console.log(`[Import] Parsed ${words.length} words, ${errors.length} errors`);
             console.log('[Import] Starting database operations...');
-            // 使用事务确保数据一致性
             await (0, db_1.withClient)(async (client) => {
                 console.log('[Import] Transaction started');
                 await client.query('BEGIN');
                 try {
-                    // 先插入导入文件记录
                     console.log('[Import] Creating import file record...');
                     await client.query('INSERT INTO import_files (filename) VALUES ($1)', [req.file.originalname]);
                     const importFileResult = await client.query('SELECT id FROM import_files ORDER BY id DESC LIMIT 1');
                     const importFileId = importFileResult.rows[0]?.id || 0;
                     console.log(`[Import] Import file ID: ${importFileId}`);
-                    // 批量保存错误日志
                     if (errors.length > 0) {
                         console.log('[Import] Saving error logs...');
                         const errorValues = errors.map(e => [importFileId, e.index, e.english, e.reason]);
@@ -92,12 +93,10 @@ async function startServer() {
                         }
                         console.log('[Import] Error logs saved');
                     }
-                    // 清空现有单词
                     console.log('[Import] Clearing existing words...');
                     await client.query('DELETE FROM word_relations');
                     await client.query('DELETE FROM words');
                     console.log('[Import] Existing words cleared');
-                    // 批量插入单词 - 这是性能提升的关键
                     if (words.length > 0) {
                         console.log(`[Import] Inserting ${words.length} words in batches...`);
                         const wordValues = words.map(w => [w.english, w.part_of_speech, w.chinese, 0]);
@@ -120,7 +119,6 @@ async function startServer() {
                     throw error;
                 }
             });
-            // 后台触发自动分类
             console.log('[Import] Scheduling auto-classification...');
             setTimeout(async () => {
                 try {
@@ -137,7 +135,6 @@ async function startServer() {
                         words.forEach((w) => {
                             wordIndex.set(w.english.toLowerCase(), w.id);
                         });
-                        // 构建现有关系的索引，避免重复
                         const existingIndex = new Set();
                         existing.forEach((r) => {
                             existingIndex.add(`${r.root_word_id}-${r.child_word_id}-${r.relation_type}`);
@@ -150,7 +147,6 @@ async function startServer() {
                             if (english.includes(' ')) {
                                 const coreWord = extractCoreWord(english, wordIndex);
                                 if (coreWord && coreWord !== word.id) {
-                                    // 检查是否已存在
                                     const key = `${coreWord}-${word.id}-phrase`;
                                     if (!existingIndex.has(key)) {
                                         relationsToInsert.push({ root: coreWord, child: word.id, type: 'phrase' });
@@ -172,7 +168,6 @@ async function startServer() {
                                 processedIds.push(word.id);
                             }
                         }
-                        // 批量插入关系
                         if (relationsToInsert.length > 0) {
                             console.log(`[Classification] Inserting ${relationsToInsert.length} relations...`);
                             await client.query('BEGIN');
@@ -183,7 +178,6 @@ async function startServer() {
                                     const placeholders = batch.map((_, rowIndex) => `($${rowIndex * 3 + 1}, $${rowIndex * 3 + 2}, $${rowIndex * 3 + 3})`).join(', ');
                                     await client.query('INSERT INTO word_relations (root_word_id, child_word_id, relation_type) VALUES ' + placeholders, batch.flatMap(r => [r.root, r.child, r.type]));
                                 }
-                                // 批量更新 is_classified
                                 if (processedIds.length > 0) {
                                     const placeholders = processedIds.map((_, i) => `$${i + 1}`).join(',');
                                     await client.query(`UPDATE words SET is_classified = 1 WHERE id IN (${placeholders})`, processedIds);
@@ -214,7 +208,6 @@ async function startServer() {
             res.status(500).json({ error: 'Failed to import file', details: String(error) });
         }
     });
-    // 获取导入错误日志
     app.get('/api/import-errors', async (req, res) => {
         const limit = parseInt(req.query.limit) || 50;
         const errors = await (0, db_1.all)(`
@@ -229,7 +222,6 @@ async function startServer() {
     `, [limit]);
         res.json({ success: true, errors });
     });
-    // 获取最近的导入记录及错误统计
     app.get('/api/import-stats', async (req, res) => {
         const recentImports = await (0, db_1.all)(`
       SELECT 
@@ -243,33 +235,45 @@ async function startServer() {
     `);
         res.json({ success: true, imports: recentImports });
     });
-    // 获取单词列表（分页）- 优化版：直接包含关系数据
     app.get('/api/words', async (req, res) => {
         const page = parseInt(req.query.page) || 1;
         const pageSize = parseInt(req.query.pageSize) || 20;
         const search = req.query.search || '';
         const offset = (page - 1) * pageSize;
+        const wordIds = [];
+        let total = 0;
         let words;
-        let total;
         if (search) {
             const searchTerm = `%${search}%`;
-            words = await (0, db_1.all)('SELECT * FROM words WHERE english LIKE $1 OR chinese LIKE $2 ORDER BY english LIMIT $3 OFFSET $4', [searchTerm, searchTerm, pageSize, offset]);
-            const totalResult = await (0, db_1.get)('SELECT COUNT(*) as total FROM words WHERE english LIKE $1 OR chinese LIKE $2', [searchTerm, searchTerm]);
-            total = parseInt(totalResult?.total) || 0;
+            const [wordsResult, countResult] = await Promise.all([
+                (0, db_1.all)('SELECT * FROM words WHERE english LIKE $1 OR chinese LIKE $2 ORDER BY english LIMIT $3 OFFSET $4', [searchTerm, searchTerm, pageSize, offset]),
+                (0, db_1.get)('SELECT COUNT(*) as total FROM words WHERE english LIKE $1 OR chinese LIKE $2', [searchTerm, searchTerm])
+            ]);
+            words = wordsResult;
+            total = parseInt(countResult?.total) || 0;
         }
         else {
-            words = await (0, db_1.all)('SELECT * FROM words ORDER BY english LIMIT $1 OFFSET $2', [pageSize, offset]);
-            const totalResult = await (0, db_1.get)('SELECT COUNT(*) as total FROM words');
-            total = parseInt(totalResult?.total) || 0;
+            const [wordsResult, countResult] = await Promise.all([
+                (0, db_1.all)('SELECT * FROM words ORDER BY english LIMIT $1 OFFSET $2', [pageSize, offset]),
+                (0, db_1.get)('SELECT COUNT(*) as total FROM words')
+            ]);
+            words = wordsResult;
+            total = parseInt(countResult?.total) || 0;
         }
-        // 获取关系数据并构建树形结构
-        const wordIds = words.map(w => w.id);
+        words.forEach(w => wordIds.push(w.id));
         let relations = [];
         let childWords = [];
+        let childWordIds = [];
+        let allChildWordIds = new Set();
         if (wordIds.length > 0) {
             const placeholders = wordIds.map((_, i) => `$${i + 1}`).join(',');
-            relations = await (0, db_1.all)(`SELECT * FROM word_relations WHERE root_word_id IN (${placeholders})`, wordIds);
-            const childWordIds = [...new Set(relations.map(r => r.child_word_id))];
+            const [relationsResult, childIdsResult] = await Promise.all([
+                (0, db_1.all)(`SELECT * FROM word_relations WHERE root_word_id IN (${placeholders})`, wordIds),
+                (0, db_1.all)(`SELECT DISTINCT child_word_id FROM word_relations WHERE root_word_id IN (${placeholders})`, wordIds)
+            ]);
+            relations = relationsResult;
+            childIdsResult.forEach((r) => allChildWordIds.add(r.child_word_id));
+            childWordIds = [...allChildWordIds];
             if (childWordIds.length > 0) {
                 const childPlaceholders = childWordIds.map((_, i) => `$${i + 1}`).join(',');
                 childWords = await (0, db_1.all)(`SELECT * FROM words WHERE id IN (${childPlaceholders})`, childWordIds);
@@ -278,7 +282,7 @@ async function startServer() {
         const wordMap = new Map();
         words.forEach(w => wordMap.set(w.id, { ...w, derivatives: [], phrases: [] }));
         childWords.forEach(w => wordMap.set(w.id, { ...w, derivatives: [], phrases: [] }));
-        relations.forEach(r => {
+        relations.forEach((r) => {
             const child = wordMap.get(r.child_word_id);
             const parent = wordMap.get(r.root_word_id);
             if (child && parent) {
@@ -316,8 +320,6 @@ async function startServer() {
                 isChild: false
             };
         });
-        // 获取所有子词ID
-        const allChildWordIds = new Set((await (0, db_1.all)('SELECT child_word_id FROM word_relations')).map(r => r.child_word_id));
         const resultWithParentInfo = result.map(word => ({
             ...word,
             hasParent: allChildWordIds.has(word.id)
@@ -329,7 +331,6 @@ async function startServer() {
             pageSize
         });
     });
-    // 更新单词
     app.put('/api/words/:id', async (req, res) => {
         const wordId = parseInt(req.params.id);
         const { english, part_of_speech, chinese } = req.body;
@@ -345,7 +346,6 @@ async function startServer() {
             res.status(500).json({ success: false, message: '更新失败' });
         }
     });
-    // 获取单词的全局索引（按english排序）
     app.get('/api/words/index/:wordId', async (req, res) => {
         const wordId = parseInt(req.params.wordId);
         try {
@@ -368,7 +368,6 @@ async function startServer() {
             res.status(500).json({ success: false, message: '获取索引失败' });
         }
     });
-    // 添加新单词
     app.post('/api/words', async (req, res) => {
         const { english, part_of_speech, chinese } = req.body;
         try {
@@ -384,19 +383,15 @@ async function startServer() {
             res.status(500).json({ success: false, message: '添加失败' });
         }
     });
-    // 删除单词
     app.delete('/api/words/:id', async (req, res) => {
         const wordId = parseInt(req.params.id);
         try {
             console.log(`[DeleteWord] Deleting word ${wordId}...`);
             await (0, db_1.withClient)(async (client) => {
                 await client.query('BEGIN');
-                // 先删除与该单词相关的所有关系
                 await client.query('DELETE FROM word_relations WHERE root_word_id = $1 OR child_word_id = $1', [wordId]);
-                // 从错题集和观察室删除
                 await client.query('DELETE FROM error_words WHERE word_id = $1', [wordId]);
                 await client.query('DELETE FROM observation_words WHERE word_id = $1', [wordId]);
-                // 删除单词
                 await client.query('DELETE FROM words WHERE id = $1', [wordId]);
                 await client.query('COMMIT');
             });
@@ -408,7 +403,6 @@ async function startServer() {
             res.status(500).json({ success: false, message: '删除失败' });
         }
     });
-    // 批量删除单词
     app.post('/api/words/batch-delete', async (req, res) => {
         const { wordIds } = req.body;
         if (!Array.isArray(wordIds) || wordIds.length === 0) {
@@ -418,7 +412,6 @@ async function startServer() {
             console.log(`[BatchDelete] Deleting ${wordIds.length} words...`);
             await (0, db_1.withClient)(async (client) => {
                 await client.query('BEGIN');
-                // 生成两组占位符（第一组和第二组）
                 const placeholders1 = wordIds.map((_, i) => `$${i + 1}`).join(',');
                 const placeholders2 = wordIds.map((_, i) => `$${i + wordIds.length + 1}`).join(',');
                 const params = [...wordIds, ...wordIds];
@@ -436,17 +429,14 @@ async function startServer() {
             res.status(500).json({ success: false, message: '批量删除失败' });
         }
     });
-    // 添加到错题集
     app.post('/api/error-words', async (req, res) => {
         const { wordId } = req.body;
-        // 检查是否已存在
         const existing = await (0, db_1.get)('SELECT * FROM error_words WHERE word_id = $1', [wordId]);
         if (!existing) {
             await (0, db_1.run)('INSERT INTO error_words (word_id) VALUES ($1)', [wordId]);
         }
         res.json({ success: true });
     });
-    // 从错题集移除并添加到观察室
     app.delete('/api/error-words/:wordId', async (req, res) => {
         const wordId = parseInt(req.params.wordId);
         await (0, db_1.run)('DELETE FROM error_words WHERE word_id = $1', [wordId]);
@@ -456,87 +446,138 @@ async function startServer() {
         }
         res.json({ success: true });
     });
-    // 获取错题集
     app.get('/api/error-words', async (req, res) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: '未授权' });
+        }
+        const token = authHeader.substring(7);
+        const userId = await (0, auth_1.getUserIdFromToken)(token);
+        if (!userId) {
+            return res.status(401).json({ error: '无效的token' });
+        }
         const words = await (0, db_1.all)(`
       SELECT w.* FROM words w 
       JOIN error_words ew ON w.id = ew.word_id
-    `);
+      WHERE w.user_id = $1
+    `, [userId]);
         res.json({ words });
     });
-    // 获取观察室单词
     app.get('/api/observation-words', async (req, res) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: '未授权' });
+        }
+        const token = authHeader.substring(7);
+        const userId = await (0, auth_1.getUserIdFromToken)(token);
+        if (!userId) {
+            return res.status(401).json({ error: '无效的token' });
+        }
         const words = await (0, db_1.all)(`
       SELECT w.*, ow.correct_count FROM words w 
       JOIN observation_words ow ON w.id = ow.word_id
-    `);
+      WHERE w.user_id = $1
+    `, [userId]);
         res.json({ words });
     });
-    // 观察室单词拼写正确
     app.post('/api/observation-words/:wordId/correct', async (req, res) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: '未授权' });
+        }
+        const token = authHeader.substring(7);
+        const userId = await (0, auth_1.getUserIdFromToken)(token);
+        if (!userId) {
+            return res.status(401).json({ error: '无效的token' });
+        }
         const wordId = parseInt(req.params.wordId);
-        const word = await (0, db_1.get)('SELECT * FROM observation_words WHERE word_id = $1', [wordId]);
+        const word = await (0, db_1.get)('SELECT * FROM observation_words WHERE user_id = $1 AND word_id = $2', [userId, wordId]);
         if (word) {
             const correctCount = parseInt(String(word.correct_count || '0'));
             const newCount = correctCount + 1;
             if (newCount >= 2) {
-                await (0, db_1.run)('DELETE FROM observation_words WHERE word_id = $1', [wordId]);
+                await (0, db_1.run)('DELETE FROM observation_words WHERE user_id = $1 AND word_id = $2', [userId, wordId]);
             }
             else {
-                await (0, db_1.run)('UPDATE observation_words SET correct_count = $1 WHERE word_id = $2', [newCount, wordId]);
+                await (0, db_1.run)('UPDATE observation_words SET correct_count = $1 WHERE user_id = $2 AND word_id = $3', [newCount, userId, wordId]);
             }
         }
         res.json({ success: true });
     });
-    // 观察室单词拼写错误
     app.post('/api/observation-words/:wordId/error', async (req, res) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: '未授权' });
+        }
+        const token = authHeader.substring(7);
+        const userId = await (0, auth_1.getUserIdFromToken)(token);
+        if (!userId) {
+            return res.status(401).json({ error: '无效的token' });
+        }
         const wordId = parseInt(req.params.wordId);
-        await (0, db_1.run)('DELETE FROM observation_words WHERE word_id = $1', [wordId]);
-        const existing = await (0, db_1.get)('SELECT * FROM error_words WHERE word_id = $1', [wordId]);
+        await (0, db_1.run)('DELETE FROM observation_words WHERE user_id = $1 AND word_id = $2', [userId, wordId]);
+        const existing = await (0, db_1.get)('SELECT * FROM error_words WHERE user_id = $1 AND word_id = $2', [userId, wordId]);
         if (!existing) {
-            await (0, db_1.run)('INSERT INTO error_words (word_id) VALUES ($1)', [wordId]);
+            await (0, db_1.run)('INSERT INTO error_words (user_id, word_id) VALUES ($1, $2)', [userId, wordId]);
         }
         res.json({ success: true });
     });
-    // 获取昨日错词（上次练习的错词）
     app.get('/api/yesterday-errors', async (req, res) => {
-        // 获取上一个已结束的练习会话
-        const lastSession = await (0, db_1.get)('SELECT * FROM practice_sessions WHERE status = $1 ORDER BY id DESC LIMIT 1', ['completed']);
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: '未授权' });
+        }
+        const token = authHeader.substring(7);
+        const userId = await (0, auth_1.getUserIdFromToken)(token);
+        if (!userId) {
+            return res.status(401).json({ error: '无效的token' });
+        }
+        const lastSession = await (0, db_1.get)('SELECT * FROM practice_sessions WHERE user_id = $1 AND status = $2 ORDER BY id DESC LIMIT 1', [userId, 'completed']);
         if (!lastSession) {
             return res.json({ words: [], sessionId: null });
         }
-        // 获取会话期间实际产生的错题（排除会话后手动添加的）
         const words = await (0, db_1.all)(`
       SELECT w.*, ew.error_date FROM words w
       JOIN error_words ew ON w.id = ew.word_id
-      WHERE ew.error_date >= $1 AND ew.error_date <= $2
-      AND ew.error_date <= $2
+      WHERE w.user_id = $1 AND ew.error_date >= $2 AND ew.error_date <= $3
       ORDER BY ew.error_date DESC
-    `, [lastSession.start_time, lastSession.end_time]);
+    `, [userId, lastSession.start_time, lastSession.end_time]);
         res.json({ words, sessionId: lastSession.id });
     });
-    // 开始新的练习会话
     app.post('/api/practice/start', async (req, res) => {
-        // 结束所有之前的活跃会话
-        await (0, db_1.run)('UPDATE practice_sessions SET status = $1 WHERE status = $2', ['abandoned', 'active']);
-        // 创建新会话
-        await (0, db_1.run)('INSERT INTO practice_sessions (start_time, status) VALUES (NOW(), $1)', ['active']);
-        const session = await (0, db_1.get)('SELECT * FROM practice_sessions ORDER BY id DESC LIMIT 1');
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: '未授权' });
+        }
+        const token = authHeader.substring(7);
+        const userId = await (0, auth_1.getUserIdFromToken)(token);
+        if (!userId) {
+            return res.status(401).json({ error: '无效的token' });
+        }
+        await (0, db_1.run)('UPDATE practice_sessions SET status = $1 WHERE user_id = $2 AND status = $3', ['abandoned', userId, 'active']);
+        await (0, db_1.run)('INSERT INTO practice_sessions (user_id, start_time, status) VALUES ($1, NOW(), $2)', [userId, 'active']);
+        const session = await (0, db_1.get)('SELECT * FROM practice_sessions WHERE user_id = $1 ORDER BY id DESC LIMIT 1', [userId]);
         res.json({ success: true, sessionId: session?.id });
     });
-    // 结束练习会话
     app.post('/api/practice/end', async (req, res) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: '未授权' });
+        }
+        const token = authHeader.substring(7);
+        const userId = await (0, auth_1.getUserIdFromToken)(token);
+        if (!userId) {
+            return res.status(401).json({ error: '无效的token' });
+        }
         const { sessionId } = req.body;
         if (sessionId) {
-            await (0, db_1.run)('UPDATE practice_sessions SET status = $1, end_time = NOW() WHERE id = $2', ['completed', sessionId]);
+            await (0, db_1.run)('UPDATE practice_sessions SET status = $1, end_time = NOW() WHERE user_id = $2 AND id = $3', ['completed', userId, sessionId]);
         }
         else {
-            // 如果没有指定sessionId，结束所有活跃会话
-            await (0, db_1.run)('UPDATE practice_sessions SET status = $1, end_time = NOW() WHERE status = $2', ['completed', 'active']);
+            await (0, db_1.run)('UPDATE practice_sessions SET status = $1, end_time = NOW() WHERE user_id = $2 AND status = $3', ['completed', userId, 'active']);
         }
         res.json({ success: true });
     });
-    // 保存/获取设置（如随手拼的进度）
     app.get('/api/settings/:key', async (req, res) => {
         const { key } = req.params;
         const setting = await (0, db_1.get)('SELECT value FROM settings WHERE key = $1', [key]);
@@ -554,7 +595,6 @@ async function startServer() {
         }
         res.json({ success: true });
     });
-    // 获取单词树形结构
     app.get('/api/words/batch-relations', async (req, res) => {
         const wordIds = req.query.ids?.split(',').map(id => parseInt(id)) || [];
         if (wordIds.length === 0) {
@@ -563,7 +603,7 @@ async function startServer() {
         const placeholders = wordIds.map((_, i) => `$${i + 1}`).join(',');
         const words = await (0, db_1.all)(`SELECT * FROM words WHERE id IN (${placeholders})`, wordIds);
         const childIdsResult = await (0, db_1.all)(`SELECT child_word_id FROM word_relations WHERE root_word_id IN (${placeholders})`, wordIds);
-        const childWordIds = childIdsResult.map(r => r.child_word_id);
+        const childWordIds = childIdsResult.map((r) => r.child_word_id);
         let childWords = [];
         if (childWordIds.length > 0) {
             const childPlaceholders = childWordIds.map((_, i) => `$${i + 1}`).join(',');
@@ -575,7 +615,7 @@ async function startServer() {
             wordMap.set(w.id, { ...w, derivatives: [], phrases: [] });
         });
         const relations = await (0, db_1.all)(`SELECT * FROM word_relations WHERE root_word_id IN (${placeholders})`, wordIds);
-        relations.forEach(rel => {
+        relations.forEach((rel) => {
             const child = wordMap.get(rel.child_word_id);
             const parent = wordMap.get(rel.root_word_id);
             if (child && parent) {
@@ -594,7 +634,6 @@ async function startServer() {
     });
     app.get('/api/words/tree', async (req, res) => {
         const search = req.query.search || '';
-        // 获取所有单词
         let allWords;
         if (search) {
             const searchTerm = `%${search}%`;
@@ -603,15 +642,11 @@ async function startServer() {
         else {
             allWords = await (0, db_1.all)('SELECT * FROM words ORDER BY english');
         }
-        // 获取所有关系
         const relations = await (0, db_1.all)('SELECT * FROM word_relations');
-        // 获取分类规则
         const rules = await (0, db_1.all)('SELECT * FROM classification_rules WHERE active = 1 ORDER BY priority DESC');
-        // 构建树形结构
         const wordMap = new Map();
         const rootWords = [];
         const childWordIds = new Set();
-        // 先创建所有单词节点
         allWords.forEach(word => {
             wordMap.set(word.id, {
                 ...word,
@@ -620,8 +655,7 @@ async function startServer() {
                 phrases: []
             });
         });
-        // 处理关系
-        relations.forEach(rel => {
+        relations.forEach((rel) => {
             const child = wordMap.get(rel.child_word_id);
             const parent = wordMap.get(rel.root_word_id);
             if (child && parent) {
@@ -637,13 +671,11 @@ async function startServer() {
                 }
             }
         });
-        // 找出根词（没有被任何关系引用的词）
         wordMap.forEach((word, id) => {
             if (!childWordIds.has(id)) {
                 rootWords.push(word);
             }
         });
-        // 合并子词到children数组（用于前端展示）
         rootWords.forEach(word => {
             const childItems = [];
             if (word.derivatives.length > 0) {
@@ -683,25 +715,30 @@ async function startServer() {
         });
         res.json({ words: rootWords, allWordMap: Object.fromEntries(wordMap) });
     });
-    // 获取单个单词的完整关系信息（包括作为根词的子词）
     app.get('/api/words/:id/relations', async (req, res) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: '未授权' });
+        }
+        const token = authHeader.substring(7);
+        const userId = await (0, auth_1.getUserIdFromToken)(token);
+        if (!userId) {
+            return res.status(401).json({ error: '无效的token' });
+        }
         const wordId = parseInt(req.params.id);
-        // 获取单词信息
-        const word = await (0, db_1.get)('SELECT * FROM words WHERE id = $1', [wordId]);
+        const word = await (0, db_1.get)('SELECT * FROM words WHERE user_id = $1 AND id = $2', [userId, wordId]);
         if (!word) {
             return res.status(404).json({ success: false, message: '单词不存在' });
         }
-        // 获取所有关系
-        const relations = await (0, db_1.all)('SELECT * FROM word_relations');
-        const allWords = await (0, db_1.all)('SELECT * FROM words');
+        const relations = await (0, db_1.all)('SELECT * FROM word_relations WHERE user_id = $1', [userId]);
+        const allWords = await (0, db_1.all)('SELECT * FROM words WHERE user_id = $1', [userId]);
         const wordMap = new Map();
         allWords.forEach(w => {
             wordMap.set(w.id, { ...w });
         });
-        // 找到这个单词的子词
         const derivatives = [];
         const phrases = [];
-        relations.forEach(rel => {
+        relations.forEach((rel) => {
             if (rel.root_word_id === wordId) {
                 const child = wordMap.get(rel.child_word_id);
                 if (child) {
@@ -715,7 +752,6 @@ async function startServer() {
                 }
             }
         });
-        // 构建children结构
         const children = [];
         if (derivatives.length > 0) {
             children.push({
@@ -739,79 +775,102 @@ async function startServer() {
             children
         });
     });
-    // 添加单词关系
     app.post('/api/relations', async (req, res) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: '未授权' });
+        }
+        const token = authHeader.substring(7);
+        const userId = await (0, auth_1.getUserIdFromToken)(token);
+        if (!userId) {
+            return res.status(401).json({ error: '无效的token' });
+        }
         const { rootWordId, childWordId, relationType } = req.body;
-        // 检查是否已存在
-        const existing = await (0, db_1.get)('SELECT * FROM word_relations WHERE root_word_id = $1 AND child_word_id = $2 AND relation_type = $3', [rootWordId, childWordId, relationType]);
+        const existing = await (0, db_1.get)('SELECT * FROM word_relations WHERE user_id = $1 AND root_word_id = $2 AND child_word_id = $3 AND relation_type = $4', [userId, rootWordId, childWordId, relationType]);
         if (existing) {
             return res.json({ success: false, message: '关系已存在' });
         }
-        await (0, db_1.run)('INSERT INTO word_relations (root_word_id, child_word_id, relation_type) VALUES ($1, $2, $3)', [rootWordId, childWordId, relationType]);
+        await (0, db_1.run)('INSERT INTO word_relations (user_id, root_word_id, child_word_id, relation_type) VALUES ($1, $2, $3, $4)', [userId, rootWordId, childWordId, relationType]);
         res.json({ success: true });
     });
-    // 删除单词关系
     app.delete('/api/relations/:id', async (req, res) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: '未授权' });
+        }
+        const token = authHeader.substring(7);
+        const userId = await (0, auth_1.getUserIdFromToken)(token);
+        if (!userId) {
+            return res.status(401).json({ error: '无效的token' });
+        }
         const id = parseInt(req.params.id);
-        await (0, db_1.run)('DELETE FROM word_relations WHERE id = $1', [id]);
+        await (0, db_1.run)('DELETE FROM word_relations WHERE user_id = $1 AND id = $2', [userId, id]);
         res.json({ success: true });
     });
-    // 删除某个单词的所有关系（设为独立词）
     app.delete('/api/relations/word/:wordId', async (req, res) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: '未授权' });
+        }
+        const token = authHeader.substring(7);
+        const userId = await (0, auth_1.getUserIdFromToken)(token);
+        if (!userId) {
+            return res.status(401).json({ error: '无效的token' });
+        }
         const wordId = parseInt(req.params.wordId);
-        await (0, db_1.run)('DELETE FROM word_relations WHERE child_word_id = $1', [wordId]);
+        await (0, db_1.run)('DELETE FROM word_relations WHERE user_id = $1 AND child_word_id = $2', [userId, wordId]);
         res.json({ success: true });
     });
-    // 重新分类所有单词
     app.post('/api/classify/all', async (req, res) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: '未授权' });
+        }
+        const token = authHeader.substring(7);
+        const userId = await (0, auth_1.getUserIdFromToken)(token);
+        if (!userId) {
+            return res.status(401).json({ error: '无效的token' });
+        }
         const { keepManual = false, incremental = false } = req.body;
         try {
             console.log('[Classify] Starting classification...');
-            // 如果不保留手动调整，先清空所有关系
             if (!keepManual) {
                 console.log('[Classify] Clearing existing relations...');
-                await (0, db_1.run)('DELETE FROM word_relations');
-                await (0, db_1.run)('UPDATE words SET is_classified = 0');
+                await (0, db_1.run)('DELETE FROM word_relations WHERE user_id = $1', [userId]);
+                await (0, db_1.run)('UPDATE words SET is_classified = 0 WHERE user_id = $1', [userId]);
             }
-            // 获取需要分类的单词
             let words;
             if (incremental) {
-                words = await (0, db_1.all)('SELECT * FROM words WHERE is_classified = 0');
+                words = await (0, db_1.all)('SELECT * FROM words WHERE user_id = $1 AND is_classified = 0', [userId]);
             }
             else {
-                words = await (0, db_1.all)('SELECT * FROM words');
+                words = await (0, db_1.all)('SELECT * FROM words WHERE user_id = $1', [userId]);
             }
             if (words.length === 0) {
                 console.log('[Classify] No words to classify');
                 return res.json({ success: true, classified: 0 });
             }
             console.log(`[Classify] Classifying ${words.length} words...`);
-            // 获取所有单词用于建立索引
-            const allWords = await (0, db_1.all)('SELECT * FROM words');
+            const allWords = await (0, db_1.all)('SELECT * FROM words WHERE user_id = $1', [userId]);
             const rules = await (0, db_1.all)('SELECT * FROM classification_rules WHERE active = 1 ORDER BY priority DESC');
-            // 建立单词索引
             const wordIndex = new Map();
             allWords.forEach(w => {
                 wordIndex.set(w.english.toLowerCase(), w.id);
             });
-            // 智能分类算法 - 收集所有需要插入的关系
             const relationsToInsert = [];
             const processedIds = [];
-            // 按单词长度排序，优先处理短单词作为词根
             const sortedAllWords = [...allWords].sort((a, b) => a.english.length - b.english.length);
-            // 先获取所有现有关系，避免重复检查
-            const existingRelations = await (0, db_1.all)('SELECT root_word_id, child_word_id, relation_type FROM word_relations');
+            const existingRelations = await (0, db_1.all)('SELECT root_word_id, child_word_id, relation_type FROM word_relations WHERE user_id = $1', [userId]);
             const existingRelSet = new Set(existingRelations.map(r => `${r.root_word_id}-${r.child_word_id}-${r.relation_type}`));
             for (const word of words) {
                 const english = word.english.toLowerCase().trim();
                 let wasClassified = false;
-                // 判断是否是短语（包含空格）
                 if (english.includes(' ')) {
                     const coreWord = extractCoreWord(english, wordIndex);
                     if (coreWord && coreWord !== word.id) {
                         const key = `${coreWord}-${word.id}-phrase`;
                         if (!existingRelSet.has(key)) {
-                            relationsToInsert.push({ root: coreWord, child: word.id, type: 'phrase' });
+                            relationsToInsert.push({ user_id: userId, root: coreWord, child: word.id, type: 'phrase' });
                             wasClassified = true;
                         }
                     }
@@ -821,7 +880,7 @@ async function startServer() {
                     if (rootWord && rootWord !== word.id) {
                         const key = `${rootWord}-${word.id}-derivative`;
                         if (!existingRelSet.has(key)) {
-                            relationsToInsert.push({ root: rootWord, child: word.id, type: 'derivative' });
+                            relationsToInsert.push({ user_id: userId, root: rootWord, child: word.id, type: 'derivative' });
                             wasClassified = true;
                         }
                     }
@@ -831,12 +890,10 @@ async function startServer() {
                 }
             }
             console.log(`[Classify] Inserting ${relationsToInsert.length} relations...`);
-            // 批量插入关系
             if (relationsToInsert.length > 0) {
-                const relationValues = relationsToInsert.map(r => [r.root, r.child, r.type]);
-                await (0, db_1.batchInsert)('word_relations', ['root_word_id', 'child_word_id', 'relation_type'], relationValues);
+                const relationValues = relationsToInsert.map(r => [r.user_id, r.root, r.child, r.type]);
+                await (0, db_1.batchInsert)('word_relations', ['user_id', 'root_word_id', 'child_word_id', 'relation_type'], relationValues);
             }
-            // 批量标记已分类的单词
             if (processedIds.length > 0 && !incremental) {
                 await (0, db_1.batchUpdate)('words', 'is_classified = 1', 'id', processedIds);
             }
@@ -848,19 +905,24 @@ async function startServer() {
             res.status(500).json({ success: false, message: '分类失败' });
         }
     });
-    // 重置单个单词的分类
     app.post('/api/classify/reset', async (req, res) => {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: '未授权' });
+        }
+        const token = authHeader.substring(7);
+        const userId = await (0, auth_1.getUserIdFromToken)(token);
+        if (!userId) {
+            return res.status(401).json({ error: '无效的token' });
+        }
         const { wordId } = req.body;
         try {
             console.log(`[ResetClassify] Resetting word ${wordId}...`);
             await (0, db_1.withClient)(async (client) => {
                 await client.query('BEGIN');
-                // 首先解除该单词作为子单词的关系
-                await client.query('DELETE FROM word_relations WHERE child_word_id = $1', [wordId]);
-                // 解除该单词作为父单词的关系，并把这些子单词变回独立
-                await client.query('DELETE FROM word_relations WHERE root_word_id = $1', [wordId]);
-                // 标记该单词未分类
-                await client.query('UPDATE words SET is_classified = 0 WHERE id = $1', [wordId]);
+                await client.query('DELETE FROM word_relations WHERE user_id = $1 AND child_word_id = $2', [userId, wordId]);
+                await client.query('DELETE FROM word_relations WHERE user_id = $1 AND root_word_id = $2', [userId, wordId]);
+                await client.query('UPDATE words SET is_classified = 0 WHERE user_id = $1 AND id = $2', [userId, wordId]);
                 await client.query('COMMIT');
             });
             console.log('[ResetClassify] Complete');
@@ -871,36 +933,50 @@ async function startServer() {
             res.status(500).json({ success: false, message: '重置分类失败' });
         }
     });
-    // 获取所有根词（用于手动调整）
     app.get('/api/words/roots', async (req, res) => {
-        // 获取所有没有作为子词出现的单词
-        const childIdsResult = await (0, db_1.all)('SELECT DISTINCT child_word_id FROM word_relations');
-        const childIds = childIdsResult.map(r => r.child_word_id);
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: '未授权' });
+        }
+        const token = authHeader.substring(7);
+        const userId = await (0, auth_1.getUserIdFromToken)(token);
+        if (!userId) {
+            return res.status(401).json({ error: '无效的token' });
+        }
+        const childIdsResult = await (0, db_1.all)('SELECT DISTINCT child_word_id FROM word_relations WHERE user_id = $1', [userId]);
+        const childIds = childIdsResult.map((r) => r.child_word_id);
         let roots;
         if (childIds.length > 0) {
-            const placeholders = childIds.map((_, i) => `$${i + 1}`).join(',');
-            roots = await (0, db_1.all)(`SELECT * FROM words WHERE id NOT IN (${placeholders}) ORDER BY english`, childIds);
+            const params = [userId, ...childIds];
+            const placeholders = childIds.map((_, i) => `$${i + 2}`).join(',');
+            roots = await (0, db_1.all)(`SELECT * FROM words WHERE user_id = $1 AND id NOT IN (${placeholders}) ORDER BY english`, params);
         }
         else {
-            roots = await (0, db_1.all)('SELECT * FROM words ORDER BY english');
+            roots = await (0, db_1.all)('SELECT * FROM words WHERE user_id = $1 ORDER BY english', [userId]);
         }
         res.json({ words: roots });
     });
-    // 获取数据库状态
     app.get('/api/db/status', async (req, res) => {
-        const totalResult = await (0, db_1.get)('SELECT COUNT(*) as count FROM words');
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: '未授权' });
+        }
+        const token = authHeader.substring(7);
+        const userId = await (0, auth_1.getUserIdFromToken)(token);
+        if (!userId) {
+            return res.status(401).json({ error: '无效的token' });
+        }
+        const totalResult = await (0, db_1.get)('SELECT COUNT(*) as count FROM words WHERE user_id = $1', [userId]);
         res.json({
             success: true,
             totalWords: totalResult?.count || 0,
             isHuggingFace: process.env.HF_TOKEN ? true : false
         });
     });
-    // 获取所有词性
     app.get('/api/parts-of-speech', async (req, res) => {
         const parts = await (0, db_1.all)('SELECT * FROM parts_of_speech ORDER BY code');
         res.json({ success: true, data: parts });
     });
-    // 添加词性
     app.post('/api/parts-of-speech', async (req, res) => {
         const { code, name, description } = req.body;
         if (!code || !name) {
@@ -921,7 +997,6 @@ async function startServer() {
             }
         }
     });
-    // 更新词性
     app.put('/api/parts-of-speech/:id', async (req, res) => {
         const id = parseInt(req.params.id);
         const { code, name, description } = req.body;
@@ -943,7 +1018,6 @@ async function startServer() {
             }
         }
     });
-    // 删除词性
     app.delete('/api/parts-of-speech/:id', async (req, res) => {
         const id = parseInt(req.params.id);
         try {
@@ -955,7 +1029,6 @@ async function startServer() {
             res.status(500).json({ success: false, message: '删除失败' });
         }
     });
-    // 从现有单词中初始化词性数据
     app.post('/api/parts-of-speech/init-from-words', async (req, res) => {
         try {
             console.log('[InitPOS] Starting initialization...');
@@ -1005,18 +1078,15 @@ async function startServer() {
             res.status(500).json({ success: false, message: '初始化失败' });
         }
     });
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
         console.log(`Server running on port ${PORT}`);
     });
 }
-// 从短语中提取核心词
 function extractCoreWord(phrase, wordIndex) {
     const parts = phrase.split(' ');
-    // 尝试第一个词
     if (wordIndex.has(parts[0])) {
         return wordIndex.get(parts[0]) || null;
     }
-    // 尝试去除常见介词后的第一个词
     const prepositions = ['to', 'in', 'on', 'at', 'for', 'with', 'by', 'from', 'of', 'up', 'out', 'into', 'over', 'under'];
     for (let i = 0; i < parts.length; i++) {
         if (!prepositions.includes(parts[i])) {
@@ -1027,20 +1097,16 @@ function extractCoreWord(phrase, wordIndex) {
     }
     return null;
 }
-// 查找根词
 function findRootWord(word, wordIndex, rules) {
     return findBestRootWord(word, wordIndex, rules, []);
 }
-// 查找最佳根词 - 更精确的算法
 function findBestRootWord(word, wordIndex, rules, allWords) {
     let bestRoot = null;
     let bestRootLength = -1;
-    // 首先尝试直接找最可能的短词根
     for (const rule of rules) {
         const suffix = rule.suffix;
         if (word.endsWith(suffix)) {
             let root = word.slice(0, -suffix.length);
-            // 处理特殊情况：如果后缀是 'tion'，可能需要去掉前面的 'a' 或 'i'
             if (suffix === 'tion' || suffix === 'ation') {
                 if (root.endsWith('a') || root.endsWith('i')) {
                     const altRoot = root.slice(0, -1);
@@ -1052,14 +1118,12 @@ function findBestRootWord(word, wordIndex, rules, allWords) {
                     }
                 }
             }
-            // 尝试当前词根
             if (wordIndex.has(root)) {
                 if (root.length > bestRootLength) {
                     bestRoot = wordIndex.get(root) || null;
                     bestRootLength = root.length;
                 }
             }
-            // 尝试去掉末尾的e（如translate -> translation）
             if (root.endsWith('e') && wordIndex.has(root.slice(0, -1))) {
                 const altRoot = root.slice(0, -1);
                 if (altRoot.length > bestRootLength) {
@@ -1068,7 +1132,6 @@ function findBestRootWord(word, wordIndex, rules, allWords) {
                 }
             }
         }
-        // 尝试前缀
         if (word.startsWith(suffix)) {
             const root = word.slice(suffix.length);
             if (wordIndex.has(root)) {

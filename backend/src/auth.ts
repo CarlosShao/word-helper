@@ -280,7 +280,7 @@ router.get('/github/callback', async (req, res) => {
     return res.redirect(`${baseUrl}/login?error=missing_code`);
   }
   
-  console.log('[DEBUG-GITHUB-CB] Authorization code received:', code.substring(0, 20) + '...');
+  console.log('[DEBUG-GITHUB-CB] Authorization code received:', typeof code === 'string' ? code.substring(0, 20) + '...' : String(code));
   
   try {
     const githubClientId = process.env.GITHUB_CLIENT_ID;
@@ -333,8 +333,9 @@ router.get('/github/callback', async (req, res) => {
         'INSERT INTO users (username, email, password, provider, provider_id, avatar_url, email_verified) VALUES ($1, $2, $3, $4, $5, $6, 1) RETURNING id',
         [githubUser.login, userEmail, '', 'github', githubUser.id.toString(), githubUser.avatar_url]
       );
-      console.log('[DEBUG-GITHUB-CB] New user created with ID:', result?.id);
-      user = { id: result?.id, username: githubUser.login };
+      const insertedId = result?.rows[0]?.id;
+      console.log('[DEBUG-GITHUB-CB] New user created with ID:', insertedId);
+      user = { id: insertedId, username: githubUser.login };
     } else {
       console.log('[DEBUG-GITHUB-CB] Existing user ID:', user.id, 'username:', user.username);
     }

@@ -100,7 +100,8 @@ router.post('/forgot-password', async (req, res) => {
     
     await run('INSERT INTO password_resets (email, token, expires_at) VALUES ($1, $2, $3)', [email, token, expiresAt]);
     
-    const resetLink = `${req.protocol}://${req.get('host')}/reset-password/${token}`;
+    const encodedToken = encodeURIComponent(token);
+    const resetLink = `${req.protocol}://${req.get('host')}/reset-password?token=${encodedToken}`;
     
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST || 'smtp.qq.com',

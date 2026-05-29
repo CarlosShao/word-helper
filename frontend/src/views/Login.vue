@@ -117,7 +117,7 @@
             :loading="registering"
             @click="handleRegister"
           >
-            <el-icon style="margin-right: 8px"><UserPlus /></el-icon>
+            <el-icon style="margin-right: 8px"><Plus /></el-icon>
             {{ t('auth.register') }}
           </el-button>
         </el-form-item>
@@ -158,7 +158,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import { Reading, User, Lock, Unlock, Message, UserPlus } from '@element-plus/icons-vue'
+import { Reading, User, Lock, Unlock, Message, Plus } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { useAuth } from '../composables/useAuth'
 

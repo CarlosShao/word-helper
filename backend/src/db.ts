@@ -177,6 +177,10 @@ export async function initDb(): Promise<void> {
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_settings_user ON settings(user_id)`);
+    
+    await pool.query(`ALTER TABLE IF EXISTS settings ADD COLUMN IF NOT EXISTS user_id INTEGER`);
+    await pool.query(`ALTER TABLE IF EXISTS settings ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+    await pool.query(`ALTER TABLE IF EXISTS settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
 
     console.log('[DB] Creating practice_sessions table...');
     await pool.query(`
@@ -219,6 +223,9 @@ export async function initDb(): Promise<void> {
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_rules_user ON classification_rules(user_id)`);
+    
+    await pool.query(`ALTER TABLE IF EXISTS classification_rules ADD COLUMN IF NOT EXISTS user_id INTEGER`);
+    await pool.query(`ALTER TABLE IF EXISTS classification_rules ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
 
     console.log('[DB] Creating import_error_logs table...');
     await pool.query(`

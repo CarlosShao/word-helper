@@ -32,6 +32,7 @@ api.interceptors.response.use(
   (error) => {
     const isLoginRequest = error.config?.url?.includes('/auth/login')
     const isLogoutRequest = error.config?.url?.includes('/auth/logout')
+    const isSettingsRequest = error.config?.url?.includes('/settings/')
     
     if (isLoggingOut) {
       console.log('[DEBUG-API] Error during logout - ignoring completely')
@@ -39,7 +40,8 @@ api.interceptors.response.use(
     }
     
     if (error.response?.status === 401) {
-      if (!isLoginRequest && !isLogoutRequest && !isRefreshingToken) {
+      // 如果是获取设置的请求，不要立即登出，只是让请求失败
+      if (!isLoginRequest && !isLogoutRequest && !isRefreshingToken && !isSettingsRequest) {
         const currentPath = router.currentRoute.value.path
         if (currentPath !== '/login') {
           localStorage.removeItem('token')

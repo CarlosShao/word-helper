@@ -58,7 +58,7 @@ echo.
 echo [4/6] Cleaning up old containers and images...
 docker stop word-helper 2>nul
 docker rm -f word-helper 2>nul
-docker compose down -v 2>nul
+docker compose -f docker-compose.dev.yml down -v 2>nul
 docker rmi -f word-helper 2>nul
 docker builder prune -f
 echo Cleaned up old containers and images
@@ -67,14 +67,14 @@ echo.
 
 echo [5/6] Rebuilding and starting services...
 echo Building, please wait (this may take a few minutes)...
-docker compose build --no-cache
+docker compose -f docker-compose.dev.yml build --no-cache
 if errorlevel 1 (
     echo Docker build failed!
     pause
     exit /b 1
 )
 
-docker compose up -d
+docker compose -f docker-compose.dev.yml up -d
 if errorlevel 1 (
     echo Docker start failed!
     echo Please check if Docker is running properly

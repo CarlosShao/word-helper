@@ -10,49 +10,13 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# 默认使用开发环境
-ENV_MODE="dev"
-
-# 解析参数
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        --prod|--production) ENV_MODE="prod"; shift ;;
-        --dev|--development) ENV_MODE="dev"; shift ;;
-        *) echo "Unknown parameter passed: $1"; exit 1 ;;
-    esac
-done
-
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}   Word Helper Quick Start (Linux)${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
 
-# 显示当前环境
-if [ "$ENV_MODE" = "prod" ]; then
-    echo -e "${GREEN}环境: 生产环境 (Production)${NC}"
-    echo -e "${BLUE}使用配置: docker-compose.yml${NC}"
-else
-    echo -e "${YELLOW}环境: 开发环境 (Development)${NC}"
-    echo -e "${BLUE}使用配置: docker-compose.dev.yml${NC}"
-fi
-echo ""
-
-# 如果没有指定参数，提示使用方法
-if [ $# -eq 0 ]; then
-    echo -e "${YELLOW}提示: 使用 --prod 参数启动生产环境${NC}"
-    echo -e "${YELLOW}示例: ./start.sh --prod${NC}"
-    echo ""
-fi
-
 # [0/5] Configuring startup options
 echo -e "${YELLOW}[0/5] Configuring startup options...${NC}"
-
-# 确定使用哪个 docker-compose 文件
-if [ "$ENV_MODE" = "prod" ]; then
-    COMPOSE_FILE="docker-compose.yml"
-else
-    COMPOSE_FILE="docker-compose.dev.yml"
-fi
 
 # [1/5] Checking Docker status
 echo -e "${YELLOW}[1/5] Checking Docker status...${NC}"

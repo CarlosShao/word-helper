@@ -29,11 +29,10 @@ services:
       - ./uploads:/app/uploads
     env_file:
       - .env
-      - .env.production
     environment:
       DATABASE_URL: postgresql://admin:password123@db:5432/wordhelper
       PGSSLMODE: disable
-      NODE_ENV: production
+      NODE_ENV: development
     depends_on:
       db:
         condition: service_healthy

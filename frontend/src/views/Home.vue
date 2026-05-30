@@ -91,7 +91,9 @@
           <el-table-column :label="t('home.english')" width="220" show-overflow-tooltip>
             <template #default="{ row }">
               <template v-if="row.type === 'group'">
-                <el-tag size="small" type="warning">{{ row.title }}</el-tag>
+                <el-tag size="small" type="warning">
+                  {{ row.title === '衍生词' ? t('home.derivative') : row.title === '短语' ? t('home.phrase') : row.title }}
+                </el-tag>
               </template>
               <template v-else-if="row.id">
                 <template v-if="!row.isChild && editingId === row.id && editingField === 'english'">
@@ -257,7 +259,9 @@
               <template #default="{ node, data }">
                 <div class="tree-item">
                   <span>{{ data.english }}</span>
-                  <el-tag v-if="data.type === 'group'" size="small" type="warning">{{ data.title }}</el-tag>
+                  <el-tag v-if="data.type === 'group'" size="small" type="warning">
+                    {{ data.title === '衍生词' ? t('home.derivative') : data.title === '短语' ? t('home.phrase') : data.title }}
+                  </el-tag>
                   <el-button 
                     v-if="data.id" 
                     size="small" 
@@ -314,7 +318,7 @@
 
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="closeManualClassification">关闭</el-button>
+          <el-button @click="closeManualClassification">{{ t('common.close') }}</el-button>
         </div>
       </template>
     </el-dialog>

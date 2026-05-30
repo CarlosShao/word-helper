@@ -179,17 +179,19 @@
             </div>
           </div>
 
-          <div class="pos-table-wrapper">
-            <el-table :data="partsOfSpeech" border :loading="loading" class="pos-table" style="width: 100%">
-              <el-table-column prop="code" :label="t('settings.code')" min-width="100" />
-              <el-table-column prop="name" :label="t('settings.name')" min-width="140" />
+          <div class="table-wrapper">
+            <el-table :data="partsOfSpeech" border :loading="loading" class="word-table" style="width: 100%">
+              <el-table-column prop="code" :label="t('settings.code')" width="100" />
+              <el-table-column prop="name" :label="t('settings.name')" width="140" />
               <el-table-column prop="description" :label="t('settings.description')" min-width="200" show-overflow-tooltip />
-              <el-table-column prop="created_at" :label="t('settings.createdAt')" min-width="160" :formatter="formatCreatedTime" />
-              <el-table-column prop="updated_at" :label="t('settings.updatedAt')" min-width="160" :formatter="formatUpdatedTime" />
+              <el-table-column prop="created_at" :label="t('settings.createdAt')" width="180" :formatter="formatCreatedTime" />
+              <el-table-column prop="updated_at" :label="t('settings.updatedAt')" width="180" :formatter="formatUpdatedTime" />
               <el-table-column :label="t('settings.editPos')" width="150" align="center" fixed="right">
                 <template #default="scope">
-                  <el-button size="small" @click="editItem(scope.row)">{{ t('common.edit') }}</el-button>
-                  <el-button size="small" type="danger" @click="deleteItem(scope.row)">{{ t('common.delete') }}</el-button>
+                  <div class="action-buttons-row">
+                    <el-button size="small" @click="editItem(scope.row)">{{ t('common.edit') }}</el-button>
+                    <el-button size="small" type="danger" @click="deleteItem(scope.row)">{{ t('common.delete') }}</el-button>
+                  </div>
                 </template>
               </el-table-column>
             </el-table>
@@ -543,71 +545,101 @@ onMounted(() => {
   gap: 12px;
 }
 
-.pos-table-wrapper {
+.table-wrapper {
   width: 100%;
   overflow-x: auto;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
 }
 
-.pos-table {
-  width: 100%;
-  min-width: 900px;
+.table-wrapper::-webkit-scrollbar {
+  height: 8px;
 }
 
-.pos-table :deep(.el-table__header) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+.table-wrapper::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
 }
 
-.pos-table :deep(.el-table__header th) {
-  color: #fff;
+.table-wrapper::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+.word-table {
+  min-width: 1200px;
+}
+
+.word-table :deep(.el-table__header-wrapper) {
+  background: #f8f9fb !important;
+}
+
+.word-table :deep(.el-table__header th) {
+  background: #f8f9fb !important;
+  color: #606266;
   font-weight: 600;
-  border-bottom: none;
 }
 
-.pos-table :deep(.el-table__header th:first-child) {
-  border-radius: 12px 0 0 0;
+.word-table :deep(.el-table__body td) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.pos-table :deep(.el-table__header th:last-child) {
-  border-radius: 0 12px 0 0;
+.word-table :deep(.el-table__header th.el-table__cell) {
+  background: #f8f9fb !important;
 }
 
-.pos-table :deep(.el-table__body tr:hover) {
-  background-color: #f8f9fa;
+/* 操作栏固定列的样式优化 */
+.word-table :deep(.el-table__fixed-right) {
+  box-shadow: -4px 0 6px rgba(0, 0, 0, 0.08);
+  z-index: 10;
 }
 
-.pos-table :deep(.el-table__body tr:last-child td:first-child) {
-  border-radius: 0 0 0 12px;
+.word-table :deep(.el-table__fixed-right .el-table__header th) {
+  background: #f8f9fb !important;
 }
 
-.pos-table :deep(.el-table__body tr:last-child td:last-child) {
-  border-radius: 0 0 12px 0;
+.word-table :deep(.el-table__fixed-right-patch) {
+  background-color: #f7f8fa !important;
+  box-shadow: -4px 0 6px rgba(0, 0, 0, 0.08);
+  z-index: 10;
+}
+
+.word-table :deep(.el-table__fixed-right .el-table__header-wrapper th) {
+  background-color: #f7f8fa !important;
+}
+
+/* 确保表格内容不会被操作栏挡住 */
+.word-table :deep(.el-table__body-wrapper) {
+  overflow-x: auto;
+}
+
+.action-buttons-row {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+  align-items: center;
 }
 
 @media (max-width: 1024px) {
-  .pos-table-wrapper {
-    border-radius: 8px;
-  }
-  
-  .pos-table :deep(.el-table__header th),
-  .pos-table :deep(.el-table__body td) {
+  .word-table :deep(.el-table__header th),
+  .word-table :deep(.el-table__body td) {
     padding: 10px 8px;
   }
 }
 
 @media (max-width: 768px) {
-  .pos-table-wrapper {
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
-  }
-  
-  .pos-table :deep(.el-table__header th),
-  .pos-table :deep(.el-table__body td) {
+  .word-table :deep(.el-table__header th),
+  .word-table :deep(.el-table__body td) {
     font-size: 13px;
     padding: 8px 6px;
   }
   
-  .pos-table :deep(.el-button) {
+  .word-table :deep(.el-button) {
     padding: 6px 10px;
     font-size: 12px;
   }

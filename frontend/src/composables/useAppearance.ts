@@ -21,29 +21,56 @@ const defaultSettings: AppearanceSettings = {
   enableGlassEffect: false
 }
 
-// 使用单例模式，确保全局只有一个设置实例
+const localStorageKey = 'appearanceSettings'
+
 const globalSettings = ref<AppearanceSettings>({ ...defaultSettings })
+let isInitialized = false
 
 export function useAppearance() {
   const settings = globalSettings
 
-  const loadSettings = () => {
-    const saved = localStorage.getItem('appearanceSettings')
+  const loadSettings = async () => {
+    const saved = localStorage.getItem(localStorageKey)
     if (saved) {
       try {
         const parsed = JSON.parse(saved)
         settings.value = { ...defaultSettings, ...parsed }
-        console.log('从 localStorage 加载设置:', settings.value)
+        console.log('从 localStorage 加载临时设置:', settings.value)
       } catch (e) {
-        console.error('加载设置失败:', e)
+        console.error('加载临时设置失败:', e)
       }
     }
+    
+    try {
+      const response = await wordApi.getSetting('appearance')
+      if (response && response.value) {
+        const serverSettings = JSON.parse(response.value)
+        settings.value = { ...defaultSettings, ...serverSettings }
+        localStorage.setItem(localStorageKey, JSON.stringify(settings.value))
+        console.log('从服务器加载设置:', settings.value)
+      }
+    } catch (error) {
+      console.log('从服务器加载设置失败，使用本地设置:', error)
+    }
+    
     applySettings()
+    isInitialized = true
   }
 
-  const saveSettings = () => {
+  const saveSettings = async () => {
+    if (!isInitialized) return
+    
     console.log('保存设置:', settings.value)
-    localStorage.setItem('appearanceSettings', JSON.stringify(settings.value))
+    
+    localStorage.setItem(localStorageKey, JSON.stringify(settings.value))
+    
+    try {
+      await wordApi.saveSetting('appearance', JSON.stringify(settings.value))
+      console.log('设置已保存到服务器')
+    } catch (error) {
+      console.error('保存设置到服务器失败:', error)
+    }
+    
     applySettings()
   }
 
@@ -120,9 +147,9 @@ export function useAppearance() {
     })
   }
 
-  const resetSettings = () => {
+  const resetSettings = async () => {
     settings.value = { ...defaultSettings }
-    saveSettings()
+    await saveSettings()
   }
 
   const uploadImage = async (file: File): Promise<string> => {
@@ -141,12 +168,25 @@ export function useAppearance() {
     saveSettings()
   }
 
+  let saveTimeout: number | null = null
+  
+  const debouncedSave = () => {
+    if (saveTimeout) {
+      clearTimeout(saveTimeout)
+    }
+    saveTimeout = window.setTimeout(() => {
+      saveSettings()
+    }, 500)
+  }
+
   onMounted(() => {
     loadSettings()
   })
 
   watch(settings, () => {
-    saveSettings()
+    if (isInitialized) {
+      debouncedSave()
+    }
   }, { deep: true })
 
   return {

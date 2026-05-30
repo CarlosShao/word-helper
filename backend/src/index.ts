@@ -49,22 +49,28 @@ async function extractUserId(req: express.Request): Promise<number | null> {
   return getUserIdFromToken(token);
 }
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 const corsOptions = {
   origin: function (origin: any, callback: any) {
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      /\.onrender\.com$/,
-      /\.vercel\.app$/,
-      /\.netlify\.app$/
-    ];
-    
-    if (!origin || allowedOrigins.some((pattern: any) => 
-      typeof pattern === 'string' ? origin === pattern : pattern.test(origin)
-    )) {
+    if (isProduction) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      const allowedOrigins = [
+        'http://localhost:3000',
+        'http://localhost:5173',
+        /\.onrender\.com$/,
+        /\.vercel\.app$/,
+        /\.netlify\.app$/
+      ];
+      
+      if (!origin || allowedOrigins.some((pattern: any) => 
+        typeof pattern === 'string' ? origin === pattern : pattern.test(origin)
+      )) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
     }
   },
   credentials: true

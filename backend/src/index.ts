@@ -166,30 +166,48 @@ async function startServer() {
   const staticDir = path.join(__dirname, '../public');
   if (fs.existsSync(staticDir)) {
     app.use(express.static(staticDir));
-    
-    app.get('*', (req, res, next) => {
-      if (req.path.startsWith('/api')) {
-        return next();
-      }
-      res.sendFile(path.join(staticDir, 'index.html'));
-    });
   }
-
+  
+  // 上传的图片静态文件路由
   const uploadsDir = path.join(__dirname, '../uploads');
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+  app.use('/uploads', express.static(uploadsDir));
 
   const storage = multer.diskStorage({
     destination: (req, file, cb) => {
       cb(null, uploadsDir);
     },
     filename: (req, file, cb) => {
-      cb(null, file.originalname);
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const ext = path.extname(file.originalname);
+      cb(null, `bg-${uniqueSuffix}${ext}`);
     }
   });
 
   const upload = multer({ storage });
 
   app.use('/api/auth', authRouter);
+
+  // 上传图片接口
+  app.post('/api/upload-image', upload.single('image'), async (req, res) => {
+    try {
+      const userId = await extractUserId(req);
+      if (!userId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
+      
+      const imageUrl = `/uploads/${req.file.filename}`;
+      res.json({ url: imageUrl });
+      
+    } catch (error) {
+      console.error('[Upload Image] Error:', error);
+      res.status(500).json({ error: 'Upload failed' });
+    }
+  });
 
   app.post('/api/import', upload.single('file'), async (req, res) => {
     try {
@@ -1522,6 +1540,16 @@ async function startServer() {
       res.status(500).json({ success: false, message: '初始化失败' });
     }
   });
+
+  const staticDir = path.join(__dirname, '../public');
+  if (fs.existsSync(staticDir)) {
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) {
+        return next();
+      }
+      res.sendFile(path.join(staticDir, 'index.html'));
+    });
+  }
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);

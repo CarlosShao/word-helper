@@ -172,6 +172,12 @@ export const wordApi = {
 
   addWord: (data: { english: string, part_of_speech: string, chinese: string }) => {
     return api.post('/words', data)
+  },
+  
+  uploadImage: (file: File) => {
+    const formData = new FormData()
+    formData.append('image', file)
+    return api.post('/upload-image', formData).then(res => res.data)
   }
 }
 

@@ -1,4 +1,5 @@
 import { ref, onMounted, watch } from 'vue'
+import { wordApi } from '../api'
 
 interface AppearanceSettings {
   backgroundColor: string
@@ -124,16 +125,14 @@ export function useAppearance() {
     saveSettings()
   }
 
-  const uploadImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const result = e.target?.result as string
-        resolve(result)
-      }
-      reader.onerror = reject
-      reader.readAsDataURL(file)
-    })
+  const uploadImage = async (file: File): Promise<string> => {
+    try {
+      const data = await wordApi.uploadImage(file)
+      return data.url
+    } catch (error) {
+      console.error('上传图片失败:', error)
+      throw error
+    }
   }
 
   const setBackgroundImage = (imageUrl: string) => {

@@ -439,7 +439,7 @@ onMounted(() => {
 }
 
 .settings-section {
-  max-width: 800px;
+  width: 100%;
 }
 
 .section-title {
@@ -570,7 +570,7 @@ onMounted(() => {
 }
 
 .word-table {
-  min-width: 1200px;
+  width: 100%;
 }
 
 .word-table :deep(.el-table__header-wrapper) {

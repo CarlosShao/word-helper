@@ -552,6 +552,7 @@ onMounted(() => {
 
 .pos-table {
   width: 100%;
+  min-width: 900px;
 }
 
 .pos-table :deep(.el-table__header) {

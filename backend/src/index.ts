@@ -1541,7 +1541,6 @@ async function startServer() {
     }
   });
 
-  const staticDir = path.join(__dirname, '../public');
   if (fs.existsSync(staticDir)) {
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api')) {

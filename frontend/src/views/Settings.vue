@@ -180,13 +180,13 @@
           </div>
 
           <div class="pos-table-wrapper">
-            <el-table :data="partsOfSpeech" border :loading="loading" class="pos-table">
-              <el-table-column prop="code" :label="t('settings.code')" width="100" />
-              <el-table-column prop="name" :label="t('settings.name')" width="140" />
-              <el-table-column prop="description" :label="t('settings.description')" flex="1" />
-              <el-table-column prop="created_at" :label="t('settings.createdAt')" width="180" :formatter="formatCreatedTime" />
-              <el-table-column prop="updated_at" :label="t('settings.updatedAt')" width="180" :formatter="formatUpdatedTime" />
-              <el-table-column :label="t('settings.editPos')" width="140" align="center">
+            <el-table :data="partsOfSpeech" border :loading="loading" class="pos-table" style="width: 100%">
+              <el-table-column prop="code" :label="t('settings.code')" min-width="100" />
+              <el-table-column prop="name" :label="t('settings.name')" min-width="140" />
+              <el-table-column prop="description" :label="t('settings.description')" min-width="200" show-overflow-tooltip />
+              <el-table-column prop="created_at" :label="t('settings.createdAt')" min-width="160" :formatter="formatCreatedTime" />
+              <el-table-column prop="updated_at" :label="t('settings.updatedAt')" min-width="160" :formatter="formatUpdatedTime" />
+              <el-table-column :label="t('settings.editPos')" width="150" align="center" fixed="right">
                 <template #default="scope">
                   <el-button size="small" @click="editItem(scope.row)">{{ t('common.edit') }}</el-button>
                   <el-button size="small" type="danger" @click="deleteItem(scope.row)">{{ t('common.delete') }}</el-button>
@@ -552,7 +552,6 @@ onMounted(() => {
 
 .pos-table {
   width: 100%;
-  min-width: 900px;
 }
 
 .pos-table :deep(.el-table__header) {
@@ -585,15 +584,31 @@ onMounted(() => {
   border-radius: 0 0 12px 0;
 }
 
+@media (max-width: 1024px) {
+  .pos-table-wrapper {
+    border-radius: 8px;
+  }
+  
+  .pos-table :deep(.el-table__header th),
+  .pos-table :deep(.el-table__body td) {
+    padding: 10px 8px;
+  }
+}
+
 @media (max-width: 768px) {
-  .pos-table {
-    min-width: 600px;
+  .pos-table-wrapper {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
   }
   
   .pos-table :deep(.el-table__header th),
   .pos-table :deep(.el-table__body td) {
     font-size: 13px;
-    padding: 10px 8px;
+    padding: 8px 6px;
+  }
+  
+  .pos-table :deep(.el-button) {
+    padding: 6px 10px;
+    font-size: 12px;
   }
 }
 </style>

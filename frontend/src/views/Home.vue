@@ -677,7 +677,7 @@ const resetAllClassifications = async () => {
   loading.value = true
   try {
     classifying.value = true
-    await wordApi.classifyAll(false)
+    await wordApi.classifyAll(false, true)
     ElMessage.success(t('home.resetSuccess'))
     await loadWords()
   } catch (error) {

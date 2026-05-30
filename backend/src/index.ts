@@ -1213,9 +1213,17 @@ async function startServer() {
       return res.status(401).json({ error: '无效的token' });
     }
     
-    const { keepManual = false, incremental = false } = req.body;
+    const { keepManual = false, incremental = false, resetOnly = false } = req.body;
 
     try {
+      if (resetOnly) {
+        console.log('[Classify] Resetting all classifications only...');
+        await run('DELETE FROM word_relations WHERE user_id = $1', [userId]);
+        await run('UPDATE words SET is_classified = 0 WHERE user_id = $1', [userId]);
+        console.log('[Classify] Reset complete');
+        return res.json({ success: true, classified: 0 });
+      }
+
       console.log('[Classify] Starting classification...');
 
       if (!keepManual) {

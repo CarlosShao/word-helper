@@ -106,8 +106,8 @@ export const wordApi = {
     return api.delete(`/relations/word/${wordId}`)
   },
   
-  classifyAll: (keepManual: boolean = false) => {
-    return api.post('/classify/all', { keepManual })
+  classifyAll: (keepManual: boolean = false, resetOnly: boolean = false) => {
+    return api.post('/classify/all', { keepManual, resetOnly });
   },
   
   resetWordClassification: (wordId: number) => {

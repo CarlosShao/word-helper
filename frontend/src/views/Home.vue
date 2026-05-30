@@ -14,9 +14,9 @@
                 <el-icon><Delete /></el-icon>
                 {{ t('home.batchDelete', { count: selectedWords.length }) }}
               </el-button>
-              <el-button type="warning" @click="reclassifyWords" :loading="classifying" size="small">
+              <el-button type="warning" @click="resetAllClassifications" :loading="classifying" size="small">
                 <el-icon><RefreshRight /></el-icon>
-                {{ t('home.reclassify') }}
+                {{ t('home.resetClassification') }}
               </el-button>
               <el-button type="primary" @click="showUploadDialog" size="small">
                 <el-icon><Upload /></el-icon>
@@ -627,7 +627,7 @@ const handleImport = async () => {
     ElMessage.success(t('home.importSuccess', { count: res.data.count }))
     uploadDialogVisible.value = false
     currentPage.value = 1
-    loadWords()
+    await loadWords()
   } catch (error) {
     ElMessage.error(t('home.importFailed'))
   } finally {
@@ -673,15 +673,15 @@ const goToPractice = () => {
   router.push('/practice')
 }
 
-const reclassifyWords = async () => {
+const resetAllClassifications = async () => {
   loading.value = true
   try {
     classifying.value = true
-    const res = await wordApi.classifyAll(false)
-    ElMessage.success(t('home.classifySuccess', { count: res.data.classified }))
+    await wordApi.classifyAll(false)
+    ElMessage.success(t('home.resetSuccess'))
     await loadWords()
   } catch (error) {
-    ElMessage.error(t('home.classifyFailed'))
+    ElMessage.error(t('home.resetFailed'))
   } finally {
     classifying.value = false
     loading.value = false

@@ -265,6 +265,85 @@ async function startServer() {
             }
           }
 
+          console.log('[Import] Starting auto-classification...');
+          const allWords = await client.query('SELECT * FROM words WHERE user_id = $1', [userId]);
+          const rules = await client.query('SELECT * FROM classification_rules WHERE user_id IS NULL OR user_id = $1 AND active = 1 ORDER BY user_id NULLS FIRST, priority DESC', [userId]);
+          const existingRelations = await client.query('SELECT * FROM word_relations WHERE user_id = $1', [userId]);
+          
+          const wordsToClassify = allWords.rows;
+          const ruleList = rules.rows;
+          const existing = existingRelations.rows;
+          
+          console.log(`[Classification] Classifying ${wordsToClassify.length} words with ${ruleList.length} rules...`);
+          
+          const wordIndex = new Map<string, number>();
+          wordsToClassify.forEach((w: any) => {
+            wordIndex.set(w.english.toLowerCase(), w.id);
+          });
+          
+          const existingIndex = new Set<string>();
+          existing.forEach((r: any) => {
+            existingIndex.add(`${r.root_word_id}-${r.child_word_id}-${r.relation_type}`);
+          });
+
+          const relationsToInsert: Array<{ user_id: number; root: number; child: number; type: string }> = [];
+          const processedIds: number[] = [];
+
+          for (const word of wordsToClassify as any[]) {
+            const english = word.english.toLowerCase().trim();
+            let wasClassified = false;
+            
+            if (english.includes(' ')) {
+              const coreWord = extractCoreWord(english, wordIndex);
+              if (coreWord && coreWord !== word.id) {
+                const key = `${coreWord}-${word.id}-phrase`;
+                if (!existingIndex.has(key)) {
+                  relationsToInsert.push({ user_id: userId, root: coreWord, child: word.id, type: 'phrase' });
+                  wasClassified = true;
+                }
+              }
+            } else {
+              const rootWord = findRootWord(english, wordIndex, ruleList);
+              if (rootWord && rootWord !== word.id) {
+                const key = `${rootWord}-${word.id}-derivative`;
+                if (!existingIndex.has(key)) {
+                  relationsToInsert.push({ user_id: userId, root: rootWord, child: word.id, type: 'derivative' });
+                  wasClassified = true;
+                }
+              }
+            }
+            
+            if (wasClassified) {
+              processedIds.push(word.id);
+            }
+          }
+
+          if (relationsToInsert.length > 0) {
+            console.log(`[Classification] Inserting ${relationsToInsert.length} relations...`);
+            
+            const batchSize = 100;
+            for (let i = 0; i < relationsToInsert.length; i += batchSize) {
+              const batch = relationsToInsert.slice(i, i + batchSize);
+              const placeholders = batch.map((_, rowIndex) => 
+                `($${rowIndex * 4 + 1}, $${rowIndex * 4 + 2}, $${rowIndex * 4 + 3}, $${rowIndex * 4 + 4})`
+              ).join(', ');
+              
+              await client.query(
+                'INSERT INTO word_relations (user_id, root_word_id, child_word_id, relation_type) VALUES ' + placeholders,
+                batch.flatMap(r => [r.user_id, r.root, r.child, r.type])
+              );
+            }
+            
+            if (processedIds.length > 0) {
+              const paramPlaceholders = processedIds.map((_, i) => `$${i + 2}`).join(',');
+              await client.query(`UPDATE words SET is_classified = 1 WHERE user_id = $1 AND id IN (${paramPlaceholders})`, [userId, ...processedIds]);
+            }
+            
+            console.log('[Classification] Auto-classification completed successfully');
+          } else {
+            console.log('[Classification] No relations to insert');
+          }
+
           await client.query('COMMIT');
           console.log('[Import] Database transaction committed successfully');
           
@@ -274,104 +353,6 @@ async function startServer() {
           throw error;
         }
       });
-
-      console.log('[Import] Scheduling auto-classification...');
-      setTimeout(async () => {
-        try {
-          console.log('[Classification] Starting auto-classification for user:', userId);
-          
-          await withClient(async (client) => {
-            const allWords = await client.query('SELECT * FROM words WHERE user_id = $1', [userId]);
-            const rules = await client.query('SELECT * FROM classification_rules WHERE user_id IS NULL OR user_id = $1 AND active = 1 ORDER BY user_id NULLS FIRST, priority DESC', [userId]);
-            const existingRelations = await client.query('SELECT * FROM word_relations WHERE user_id = $1', [userId]);
-            
-            const words = allWords.rows;
-            const ruleList = rules.rows;
-            const existing = existingRelations.rows;
-            
-            console.log(`[Classification] Classifying ${words.length} words with ${ruleList.length} rules...`);
-            
-            const wordIndex = new Map<string, number>();
-            words.forEach((w: any) => {
-              wordIndex.set(w.english.toLowerCase(), w.id);
-            });
-            
-            const existingIndex = new Set<string>();
-            existing.forEach((r: any) => {
-              existingIndex.add(`${r.root_word_id}-${r.child_word_id}-${r.relation_type}`);
-            });
-
-            const relationsToInsert: Array<{ user_id: number; root: number; child: number; type: string }> = [];
-            const processedIds: number[] = [];
-
-            for (const word of words as any[]) {
-              const english = word.english.toLowerCase().trim();
-              let wasClassified = false;
-              
-              if (english.includes(' ')) {
-                const coreWord = extractCoreWord(english, wordIndex);
-                if (coreWord && coreWord !== word.id) {
-                  const key = `${coreWord}-${word.id}-phrase`;
-                  if (!existingIndex.has(key)) {
-                    relationsToInsert.push({ user_id: userId, root: coreWord, child: word.id, type: 'phrase' });
-                    wasClassified = true;
-                  }
-                }
-              } else {
-                const rootWord = findRootWord(english, wordIndex, ruleList);
-                if (rootWord && rootWord !== word.id) {
-                  const key = `${rootWord}-${word.id}-derivative`;
-                  if (!existingIndex.has(key)) {
-                    relationsToInsert.push({ user_id: userId, root: rootWord, child: word.id, type: 'derivative' });
-                    wasClassified = true;
-                  }
-                }
-              }
-              
-              if (wasClassified) {
-                processedIds.push(word.id);
-              }
-            }
-
-            if (relationsToInsert.length > 0) {
-              console.log(`[Classification] Inserting ${relationsToInsert.length} relations...`);
-              
-              await client.query('BEGIN');
-              try {
-                const batchSize = 100;
-                for (let i = 0; i < relationsToInsert.length; i += batchSize) {
-                  const batch = relationsToInsert.slice(i, i + batchSize);
-                  const placeholders = batch.map((_, rowIndex) => 
-                    `($${rowIndex * 4 + 1}, $${rowIndex * 4 + 2}, $${rowIndex * 4 + 3}, $${rowIndex * 4 + 4})`
-                  ).join(', ');
-                  
-                  await client.query(
-                    'INSERT INTO word_relations (user_id, root_word_id, child_word_id, relation_type) VALUES ' + placeholders,
-                    batch.flatMap(r => [r.user_id, r.root, r.child, r.type])
-                  );
-                }
-                
-                if (processedIds.length > 0) {
-                  const paramPlaceholders = processedIds.map((_, i) => `$${i + 2}`).join(',');
-                  await client.query(`UPDATE words SET is_classified = 1 WHERE user_id = $1 AND id IN (${paramPlaceholders})`, [userId, ...processedIds]);
-                }
-                
-                await client.query('COMMIT');
-                console.log('[Classification] Auto-classification completed successfully');
-              } catch (error) {
-                await client.query('ROLLBACK');
-                throw error;
-              }
-            } else {
-              console.log('[Classification] No relations to insert');
-            }
-          });
-          
-          console.log('[Classification] Auto-classification finished');
-        } catch (e) {
-          console.error('[Classification] Auto classification failed:', e);
-        }
-      }, 500);
 
       console.log('[Import] Import process completed successfully');
       res.json({ success: true, count: words.length, errorCount: errors.length, errors });

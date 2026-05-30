@@ -16,7 +16,7 @@ echo ""
 
 # [1/3] Stopping Docker Compose services
 echo -e "${YELLOW}[1/3] Stopping Docker Compose services...${NC}"
-if docker-compose down; then
+if docker compose down; then
     echo -e "${GREEN}Docker Compose services stopped${NC}"
 else
     echo -e "${YELLOW}No Docker Compose services running or already stopped${NC}"
@@ -48,6 +48,6 @@ echo ""
 
 echo -e "${YELLOW}Tips:${NC}"
 echo "  - To restart services, run: ./start.sh"
-echo "  - To view logs: docker-compose logs"
-echo "  - To completely remove images: docker-compose down -v --rmi local"
+echo "  - To view logs: docker compose logs"
+echo "  - To completely remove images: docker compose down -v --rmi local"
 echo ""

@@ -84,7 +84,7 @@ echo ""
 echo -e "${YELLOW}[4/5] Cleaning up old containers and images...${NC}"
 docker stop word-helper 2>/dev/null || true
 docker rm -f word-helper 2>/dev/null || true
-docker-compose down -v 2>/dev/null || true
+docker compose down -v 2>/dev/null || true
 docker rmi -f word-helper 2>/dev/null || true
 docker builder prune -f
 echo -e "${GREEN}Cleaned up old containers and images${NC}"
@@ -94,12 +94,12 @@ echo ""
 echo -e "${YELLOW}[5/5] Rebuilding and starting services...${NC}"
 echo "Building, please wait (this may take a few minutes)..."
 
-if ! docker-compose build --no-cache; then
+if ! docker compose build --no-cache; then
     echo -e "${RED}Docker build failed!${NC}"
     exit 1
 fi
 
-if ! docker-compose up -d; then
+if ! docker compose up -d; then
     echo -e "${RED}Docker start failed!${NC}"
     echo "Please check if Docker is running properly"
     exit 1
@@ -120,6 +120,6 @@ echo -e "${BLUE}Access at: ${NC}http://localhost:3000"
 echo ""
 echo -e "${YELLOW}Tips:${NC}"
 echo "  - Database uses remote Supabase"
-echo "  - Check logs: docker-compose logs -f"
-echo "  - Stop services: docker-compose down"
+echo "  - Check logs: docker compose logs -f"
+echo "  - Stop services: docker compose down"
 echo ""

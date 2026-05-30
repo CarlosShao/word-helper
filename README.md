@@ -33,7 +33,7 @@
 
 1. 构建并启动应用：
 ```bash
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 2. 访问应用：
@@ -41,7 +41,7 @@ docker-compose up -d --build
 
 3. 停止应用：
 ```bash
-docker-compose down
+docker compose down
 ```
 
 ### 本地部署
@@ -57,7 +57,7 @@ git clone <你的仓库地址>
 cd word-helper
 
 # 2. 启动应用
-docker-compose up -d
+docker compose up -d
 
 # 3. 访问：http://localhost:3000
 ```

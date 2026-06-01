@@ -14,9 +14,9 @@
                 <el-icon><Delete /></el-icon>
                 {{ t('home.batchDelete', { count: selectedWords.length }) }}
               </el-button>
-              <el-button type="warning" @click="resetAllClassifications" :loading="classifying" size="small">
+              <el-button type="warning" @click="reclassifyWords" :loading="classifying" size="small">
                 <el-icon><RefreshRight /></el-icon>
-                {{ t('home.resetClassification') }}
+                {{ t('home.reclassify') }}
               </el-button>
               <el-button type="primary" @click="showUploadDialog" size="small">
                 <el-icon><Upload /></el-icon>
@@ -91,9 +91,7 @@
           <el-table-column :label="t('home.english')" width="220" show-overflow-tooltip>
             <template #default="{ row }">
               <template v-if="row.type === 'group'">
-                <el-tag size="small" type="warning">
-                  {{ row.title === '衍生词' ? t('home.derivative') : row.title === '短语' ? t('home.phrase') : row.title }}
-                </el-tag>
+                <el-tag size="small" type="warning">{{ row.title }}</el-tag>
               </template>
               <template v-else-if="row.id">
                 <template v-if="!row.isChild && editingId === row.id && editingField === 'english'">
@@ -259,9 +257,7 @@
               <template #default="{ node, data }">
                 <div class="tree-item">
                   <span>{{ data.english }}</span>
-                  <el-tag v-if="data.type === 'group'" size="small" type="warning">
-                    {{ data.title === '衍生词' ? t('home.derivative') : data.title === '短语' ? t('home.phrase') : data.title }}
-                  </el-tag>
+                  <el-tag v-if="data.type === 'group'" size="small" type="warning">{{ data.title }}</el-tag>
                   <el-button 
                     v-if="data.id" 
                     size="small" 
@@ -318,7 +314,7 @@
 
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="closeManualClassification">{{ t('common.close') }}</el-button>
+          <el-button @click="closeManualClassification">关闭</el-button>
         </div>
       </template>
     </el-dialog>
@@ -457,7 +453,7 @@ import {
   Delete, Loading, Plus, EditPen, More
 } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
-import { wordApi, posApi, type Word, getIsLoggingOut } from '../api'
+import { wordApi, posApi, type Word } from '../api'
 
 const { t } = useI18n()
 
@@ -578,10 +574,7 @@ const loadWords = async () => {
     total.value = res.data.total
     words.value = res.data.words.map((w: any) => ({ ...w }))
   } catch (error) {
-    console.error('加载单词失败:', error)
-    if (!getIsLoggingOut()) {
-      ElMessage.error(t('home.loadFailed'))
-    }
+    ElMessage.error(t('home.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -627,7 +620,7 @@ const handleImport = async () => {
     ElMessage.success(t('home.importSuccess', { count: res.data.count }))
     uploadDialogVisible.value = false
     currentPage.value = 1
-    await loadWords()
+    loadWords()
   } catch (error) {
     ElMessage.error(t('home.importFailed'))
   } finally {
@@ -673,15 +666,15 @@ const goToPractice = () => {
   router.push('/practice')
 }
 
-const resetAllClassifications = async () => {
+const reclassifyWords = async () => {
   loading.value = true
   try {
     classifying.value = true
-    await wordApi.classifyAll(false, true)
-    ElMessage.success(t('home.resetSuccess'))
+    const res = await wordApi.classifyAll(false)
+    ElMessage.success(t('home.classifySuccess', { count: res.data.classified }))
     await loadWords()
   } catch (error) {
-    ElMessage.error(t('home.resetFailed'))
+    ElMessage.error(t('home.classifyFailed'))
   } finally {
     classifying.value = false
     loading.value = false
@@ -811,9 +804,7 @@ const loadImportLogs = async () => {
     }
   } catch (error) {
     console.error('加载导入日志失败:', error)
-    if (!getIsLoggingOut()) {
-      ElMessage.error(t('home.loadFailed'))
-    }
+    ElMessage.error(t('home.loadFailed'))
   } finally {
     loadingImportLogs.value = false
   }
@@ -1271,6 +1262,10 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
+  .home {
+    padding: 0 10px;
+  }
+  
   .card-header {
     flex-direction: column;
     align-items: flex-start;

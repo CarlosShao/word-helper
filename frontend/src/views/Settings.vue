@@ -179,19 +179,17 @@
             </div>
           </div>
 
-          <div class="table-wrapper">
-            <el-table :data="partsOfSpeech" border :loading="loading" class="word-table" style="width: 100%">
+          <div class="pos-table-wrapper">
+            <el-table :data="partsOfSpeech" border :loading="loading" class="pos-table">
               <el-table-column prop="code" :label="t('settings.code')" width="100" />
               <el-table-column prop="name" :label="t('settings.name')" width="140" />
-              <el-table-column prop="description" :label="t('settings.description')" min-width="200" show-overflow-tooltip />
+              <el-table-column prop="description" :label="t('settings.description')" flex="1" />
               <el-table-column prop="created_at" :label="t('settings.createdAt')" width="180" :formatter="formatCreatedTime" />
               <el-table-column prop="updated_at" :label="t('settings.updatedAt')" width="180" :formatter="formatUpdatedTime" />
-              <el-table-column :label="t('settings.editPos')" width="150" align="center" fixed="right">
+              <el-table-column :label="t('settings.editPos')" width="140" align="center">
                 <template #default="scope">
-                  <div class="action-buttons-row">
-                    <el-button size="small" @click="editItem(scope.row)">{{ t('common.edit') }}</el-button>
-                    <el-button size="small" type="danger" @click="deleteItem(scope.row)">{{ t('common.delete') }}</el-button>
-                  </div>
+                  <el-button size="small" @click="editItem(scope.row)">{{ t('common.edit') }}</el-button>
+                  <el-button size="small" type="danger" @click="deleteItem(scope.row)">{{ t('common.delete') }}</el-button>
                 </template>
               </el-table-column>
             </el-table>
@@ -439,7 +437,7 @@ onMounted(() => {
 }
 
 .settings-section {
-  width: 100%;
+  max-width: 800px;
 }
 
 .section-title {
@@ -545,103 +543,155 @@ onMounted(() => {
   gap: 12px;
 }
 
-.table-wrapper {
+.pos-table-wrapper {
   width: 100%;
   overflow-x: auto;
-  border-radius: 8px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
 }
 
-.table-wrapper::-webkit-scrollbar {
-  height: 8px;
-}
-
-.table-wrapper::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
-}
-
-.table-wrapper::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
-}
-
-.table-wrapper::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-.word-table {
+.pos-table {
   width: 100%;
+  min-width: 900px;
 }
 
-.word-table :deep(.el-table__header-wrapper) {
-  background: #f8f9fb !important;
+.pos-table :deep(.el-table__header) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-.word-table :deep(.el-table__header th) {
-  background: #f8f9fb !important;
-  color: #606266;
+.pos-table :deep(.el-table__header th) {
+  color: #fff;
   font-weight: 600;
+  border-bottom: none;
 }
 
-.word-table :deep(.el-table__body td) {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.pos-table :deep(.el-table__header th:first-child) {
+  border-radius: 12px 0 0 0;
 }
 
-.word-table :deep(.el-table__header th.el-table__cell) {
-  background: #f8f9fb !important;
+.pos-table :deep(.el-table__header th:last-child) {
+  border-radius: 0 12px 0 0;
 }
 
-/* 操作栏固定列的样式优化 */
-.word-table :deep(.el-table__fixed-right) {
-  box-shadow: -4px 0 6px rgba(0, 0, 0, 0.08);
-  z-index: 10;
+.pos-table :deep(.el-table__body tr:hover) {
+  background-color: #f8f9fa;
 }
 
-.word-table :deep(.el-table__fixed-right .el-table__header th) {
-  background: #f8f9fb !important;
+.pos-table :deep(.el-table__body tr:last-child td:first-child) {
+  border-radius: 0 0 0 12px;
 }
 
-.word-table :deep(.el-table__fixed-right-patch) {
-  background-color: #f7f8fa !important;
-  box-shadow: -4px 0 6px rgba(0, 0, 0, 0.08);
-  z-index: 10;
+.pos-table :deep(.el-table__body tr:last-child td:last-child) {
+  border-radius: 0 0 12px 0;
 }
 
-.word-table :deep(.el-table__fixed-right .el-table__header-wrapper th) {
-  background-color: #f7f8fa !important;
-}
-
-/* 确保表格内容不会被操作栏挡住 */
-.word-table :deep(.el-table__body-wrapper) {
-  overflow-x: auto;
-}
-
-.action-buttons-row {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-start;
-  align-items: center;
-}
-
-@media (max-width: 1024px) {
-  .word-table :deep(.el-table__header th),
-  .word-table :deep(.el-table__body td) {
+@media (max-width: 900px) {
+  .settings-layout {
+    flex-direction: column;
+    height: auto;
+    min-height: 100%;
+  }
+  
+  .settings-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e4e7ed;
+    padding: 16px;
+  }
+  
+  .sidebar-title {
+    margin: 0 0 12px 16px;
+    font-size: 18px;
+  }
+  
+  .settings-nav {
+    padding: 0;
+  }
+  
+  .settings-menu {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .settings-menu .el-menu-item {
+    flex: 0 1 auto;
+    height: 40px;
+    line-height: 40px;
+    padding: 0 16px;
+    margin-bottom: 0;
+    font-size: 13px;
+  }
+  
+  .settings-content {
+    padding: 16px;
+    overflow-y: visible;
+  }
+  
+  .section-title {
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+  
+  .settings-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 0;
+  }
+  
+  .item-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .image-input-wrapper {
+    width: 100%;
+  }
+  
+  .image-preview {
+    width: 100%;
+    max-width: 300px;
+  }
+  
+  .pos-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .pos-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  
+  .pos-table {
+    min-width: 600px;
+  }
+  
+  .pos-table :deep(.el-table__header th),
+  .pos-table :deep(.el-table__body td) {
+    font-size: 13px;
     padding: 10px 8px;
   }
 }
 
-@media (max-width: 768px) {
-  .word-table :deep(.el-table__header th),
-  .word-table :deep(.el-table__body td) {
-    font-size: 13px;
-    padding: 8px 6px;
+@media (max-width: 480px) {
+  .settings-sidebar {
+    padding: 12px;
   }
   
-  .word-table :deep(.el-button) {
-    padding: 6px 10px;
+  .settings-menu .el-menu-item {
+    padding: 0 12px;
     font-size: 12px;
+  }
+  
+  .settings-content {
+    padding: 12px;
+  }
+  
+  .settings-item {
+    padding: 12px 0;
   }
 }
 </style>

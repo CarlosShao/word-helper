@@ -63,23 +63,22 @@ router.beforeEach(async (to, from, next) => {
     console.log('[DEBUG-ROUTER] Token:', githubToken.substring(0, 30) + '...');
     console.log('[DEBUG-ROUTER] Username:', username);
     
-    // 先立即保存token，确保所有后续API调用都能使用
     localStorage.setItem('token', githubToken)
     if (username) {
       localStorage.setItem('username', username)
     }
-    updateAuthState() // 立即更新认证状态
     
-    console.log('[DEBUG-ROUTER] Token saved, now validating with backend...');
+    console.log('[DEBUG-ROUTER] Validating GitHub token with backend...');
     const isValid = await validateToken(githubToken)
     
     if (isValid) {
       console.log('[DEBUG-ROUTER] GitHub token validated successfully');
+      updateAuthState()
       next({ path: '/', query: {} })
     } else {
-      console.log('[DEBUG-ROUTER] GitHub token validation failed, but keeping token for debugging');
-      // 不要立即清除token，先让用户进入页面看看
-      next({ path: '/', query: {} })
+      console.log('[DEBUG-ROUTER] GitHub token validation failed');
+      clearAuthState()
+      next('/login')
     }
     return
   }

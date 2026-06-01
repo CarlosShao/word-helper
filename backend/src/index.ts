@@ -49,28 +49,22 @@ async function extractUserId(req: express.Request): Promise<number | null> {
   return getUserIdFromToken(token);
 }
 
-const isProduction = process.env.NODE_ENV === 'production';
-
 const corsOptions = {
   origin: function (origin: any, callback: any) {
-    if (isProduction) {
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      /\.onrender\.com$/,
+      /\.vercel\.app$/,
+      /\.netlify\.app$/
+    ];
+    
+    if (!origin || allowedOrigins.some((pattern: any) => 
+      typeof pattern === 'string' ? origin === pattern : pattern.test(origin)
+    )) {
       callback(null, true);
     } else {
-      const allowedOrigins = [
-        'http://localhost:3000',
-        'http://localhost:5173',
-        /\.onrender\.com$/,
-        /\.vercel\.app$/,
-        /\.netlify\.app$/
-      ];
-      
-      if (!origin || allowedOrigins.some((pattern: any) => 
-        typeof pattern === 'string' ? origin === pattern : pattern.test(origin)
-      )) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
+      callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true
@@ -166,48 +160,30 @@ async function startServer() {
   const staticDir = path.join(__dirname, '../public');
   if (fs.existsSync(staticDir)) {
     app.use(express.static(staticDir));
+    
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) {
+        return next();
+      }
+      res.sendFile(path.join(staticDir, 'index.html'));
+    });
   }
-  
-  // 上传的图片静态文件路由
+
   const uploadsDir = path.join(__dirname, '../uploads');
   if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-  app.use('/uploads', express.static(uploadsDir));
 
   const storage = multer.diskStorage({
     destination: (req, file, cb) => {
       cb(null, uploadsDir);
     },
     filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-      const ext = path.extname(file.originalname);
-      cb(null, `bg-${uniqueSuffix}${ext}`);
+      cb(null, file.originalname);
     }
   });
 
   const upload = multer({ storage });
 
   app.use('/api/auth', authRouter);
-
-  // 上传图片接口
-  app.post('/api/upload-image', upload.single('image'), async (req, res) => {
-    try {
-      const userId = await extractUserId(req);
-      if (!userId) {
-        return res.status(401).json({ error: 'Unauthorized' });
-      }
-      
-      if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-      }
-      
-      const imageUrl = `/uploads/${req.file.filename}`;
-      res.json({ url: imageUrl });
-      
-    } catch (error) {
-      console.error('[Upload Image] Error:', error);
-      res.status(500).json({ error: 'Upload failed' });
-    }
-  });
 
   app.post('/api/import', upload.single('file'), async (req, res) => {
     try {
@@ -289,85 +265,6 @@ async function startServer() {
             }
           }
 
-          console.log('[Import] Starting auto-classification...');
-          const allWords = await client.query('SELECT * FROM words WHERE user_id = $1', [userId]);
-          const rules = await client.query('SELECT * FROM classification_rules WHERE user_id IS NULL OR user_id = $1 AND active = 1 ORDER BY user_id NULLS FIRST, priority DESC', [userId]);
-          const existingRelations = await client.query('SELECT * FROM word_relations WHERE user_id = $1', [userId]);
-          
-          const wordsToClassify = allWords.rows;
-          const ruleList = rules.rows;
-          const existing = existingRelations.rows;
-          
-          console.log(`[Classification] Classifying ${wordsToClassify.length} words with ${ruleList.length} rules...`);
-          
-          const wordIndex = new Map<string, number>();
-          wordsToClassify.forEach((w: any) => {
-            wordIndex.set(w.english.toLowerCase(), w.id);
-          });
-          
-          const existingIndex = new Set<string>();
-          existing.forEach((r: any) => {
-            existingIndex.add(`${r.root_word_id}-${r.child_word_id}-${r.relation_type}`);
-          });
-
-          const relationsToInsert: Array<{ user_id: number; root: number; child: number; type: string }> = [];
-          const processedIds: number[] = [];
-
-          for (const word of wordsToClassify as any[]) {
-            const english = word.english.toLowerCase().trim();
-            let wasClassified = false;
-            
-            if (english.includes(' ')) {
-              const coreWord = extractCoreWord(english, wordIndex);
-              if (coreWord && coreWord !== word.id) {
-                const key = `${coreWord}-${word.id}-phrase`;
-                if (!existingIndex.has(key)) {
-                  relationsToInsert.push({ user_id: userId, root: coreWord, child: word.id, type: 'phrase' });
-                  wasClassified = true;
-                }
-              }
-            } else {
-              const rootWord = findRootWord(english, wordIndex, ruleList);
-              if (rootWord && rootWord !== word.id) {
-                const key = `${rootWord}-${word.id}-derivative`;
-                if (!existingIndex.has(key)) {
-                  relationsToInsert.push({ user_id: userId, root: rootWord, child: word.id, type: 'derivative' });
-                  wasClassified = true;
-                }
-              }
-            }
-            
-            if (wasClassified) {
-              processedIds.push(word.id);
-            }
-          }
-
-          if (relationsToInsert.length > 0) {
-            console.log(`[Classification] Inserting ${relationsToInsert.length} relations...`);
-            
-            const batchSize = 100;
-            for (let i = 0; i < relationsToInsert.length; i += batchSize) {
-              const batch = relationsToInsert.slice(i, i + batchSize);
-              const placeholders = batch.map((_, rowIndex) => 
-                `($${rowIndex * 4 + 1}, $${rowIndex * 4 + 2}, $${rowIndex * 4 + 3}, $${rowIndex * 4 + 4})`
-              ).join(', ');
-              
-              await client.query(
-                'INSERT INTO word_relations (user_id, root_word_id, child_word_id, relation_type) VALUES ' + placeholders,
-                batch.flatMap(r => [r.user_id, r.root, r.child, r.type])
-              );
-            }
-            
-            if (processedIds.length > 0) {
-              const paramPlaceholders = processedIds.map((_, i) => `$${i + 2}`).join(',');
-              await client.query(`UPDATE words SET is_classified = 1 WHERE user_id = $1 AND id IN (${paramPlaceholders})`, [userId, ...processedIds]);
-            }
-            
-            console.log('[Classification] Auto-classification completed successfully');
-          } else {
-            console.log('[Classification] No relations to insert');
-          }
-
           await client.query('COMMIT');
           console.log('[Import] Database transaction committed successfully');
           
@@ -377,6 +274,104 @@ async function startServer() {
           throw error;
         }
       });
+
+      console.log('[Import] Scheduling auto-classification...');
+      setTimeout(async () => {
+        try {
+          console.log('[Classification] Starting auto-classification for user:', userId);
+          
+          await withClient(async (client) => {
+            const allWords = await client.query('SELECT * FROM words WHERE user_id = $1', [userId]);
+            const rules = await client.query('SELECT * FROM classification_rules WHERE user_id IS NULL OR user_id = $1 AND active = 1 ORDER BY user_id NULLS FIRST, priority DESC', [userId]);
+            const existingRelations = await client.query('SELECT * FROM word_relations WHERE user_id = $1', [userId]);
+            
+            const words = allWords.rows;
+            const ruleList = rules.rows;
+            const existing = existingRelations.rows;
+            
+            console.log(`[Classification] Classifying ${words.length} words with ${ruleList.length} rules...`);
+            
+            const wordIndex = new Map<string, number>();
+            words.forEach((w: any) => {
+              wordIndex.set(w.english.toLowerCase(), w.id);
+            });
+            
+            const existingIndex = new Set<string>();
+            existing.forEach((r: any) => {
+              existingIndex.add(`${r.root_word_id}-${r.child_word_id}-${r.relation_type}`);
+            });
+
+            const relationsToInsert: Array<{ user_id: number; root: number; child: number; type: string }> = [];
+            const processedIds: number[] = [];
+
+            for (const word of words as any[]) {
+              const english = word.english.toLowerCase().trim();
+              let wasClassified = false;
+              
+              if (english.includes(' ')) {
+                const coreWord = extractCoreWord(english, wordIndex);
+                if (coreWord && coreWord !== word.id) {
+                  const key = `${coreWord}-${word.id}-phrase`;
+                  if (!existingIndex.has(key)) {
+                    relationsToInsert.push({ user_id: userId, root: coreWord, child: word.id, type: 'phrase' });
+                    wasClassified = true;
+                  }
+                }
+              } else {
+                const rootWord = findRootWord(english, wordIndex, ruleList);
+                if (rootWord && rootWord !== word.id) {
+                  const key = `${rootWord}-${word.id}-derivative`;
+                  if (!existingIndex.has(key)) {
+                    relationsToInsert.push({ user_id: userId, root: rootWord, child: word.id, type: 'derivative' });
+                    wasClassified = true;
+                  }
+                }
+              }
+              
+              if (wasClassified) {
+                processedIds.push(word.id);
+              }
+            }
+
+            if (relationsToInsert.length > 0) {
+              console.log(`[Classification] Inserting ${relationsToInsert.length} relations...`);
+              
+              await client.query('BEGIN');
+              try {
+                const batchSize = 100;
+                for (let i = 0; i < relationsToInsert.length; i += batchSize) {
+                  const batch = relationsToInsert.slice(i, i + batchSize);
+                  const placeholders = batch.map((_, rowIndex) => 
+                    `($${rowIndex * 4 + 1}, $${rowIndex * 4 + 2}, $${rowIndex * 4 + 3}, $${rowIndex * 4 + 4})`
+                  ).join(', ');
+                  
+                  await client.query(
+                    'INSERT INTO word_relations (user_id, root_word_id, child_word_id, relation_type) VALUES ' + placeholders,
+                    batch.flatMap(r => [r.user_id, r.root, r.child, r.type])
+                  );
+                }
+                
+                if (processedIds.length > 0) {
+                  const paramPlaceholders = processedIds.map((_, i) => `$${i + 2}`).join(',');
+                  await client.query(`UPDATE words SET is_classified = 1 WHERE user_id = $1 AND id IN (${paramPlaceholders})`, [userId, ...processedIds]);
+                }
+                
+                await client.query('COMMIT');
+                console.log('[Classification] Auto-classification completed successfully');
+              } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+              }
+            } else {
+              console.log('[Classification] No relations to insert');
+            }
+          });
+          
+          console.log('[Classification] Auto-classification finished');
+        } catch (e) {
+          console.error('[Classification] Auto classification failed:', e);
+        }
+      }, 500);
 
       console.log('[Import] Import process completed successfully');
       res.json({ success: true, count: words.length, errorCount: errors.length, errors });
@@ -1237,17 +1232,9 @@ async function startServer() {
       return res.status(401).json({ error: '无效的token' });
     }
     
-    const { keepManual = false, incremental = false, resetOnly = false } = req.body;
+    const { keepManual = false, incremental = false } = req.body;
 
     try {
-      if (resetOnly) {
-        console.log('[Classify] Resetting all classifications only...');
-        await run('DELETE FROM word_relations WHERE user_id = $1', [userId]);
-        await run('UPDATE words SET is_classified = 0 WHERE user_id = $1', [userId]);
-        console.log('[Classify] Reset complete');
-        return res.json({ success: true, classified: 0 });
-      }
-
       console.log('[Classify] Starting classification...');
 
       if (!keepManual) {
@@ -1540,15 +1527,6 @@ async function startServer() {
       res.status(500).json({ success: false, message: '初始化失败' });
     }
   });
-
-  if (fs.existsSync(staticDir)) {
-    app.get('*', (req, res, next) => {
-      if (req.path.startsWith('/api')) {
-        return next();
-      }
-      res.sendFile(path.join(staticDir, 'index.html'));
-    });
-  }
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);

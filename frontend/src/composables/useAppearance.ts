@@ -1,5 +1,4 @@
 import { ref, onMounted, watch } from 'vue'
-import { wordApi } from '../api'
 
 interface AppearanceSettings {
   backgroundColor: string
@@ -21,56 +20,29 @@ const defaultSettings: AppearanceSettings = {
   enableGlassEffect: false
 }
 
-const localStorageKey = 'appearanceSettings'
-
+// 使用单例模式，确保全局只有一个设置实例
 const globalSettings = ref<AppearanceSettings>({ ...defaultSettings })
-let isInitialized = false
 
 export function useAppearance() {
   const settings = globalSettings
 
-  const loadSettings = async () => {
-    const saved = localStorage.getItem(localStorageKey)
+  const loadSettings = () => {
+    const saved = localStorage.getItem('appearanceSettings')
     if (saved) {
       try {
         const parsed = JSON.parse(saved)
         settings.value = { ...defaultSettings, ...parsed }
-        console.log('从 localStorage 加载临时设置:', settings.value)
+        console.log('从 localStorage 加载设置:', settings.value)
       } catch (e) {
-        console.error('加载临时设置失败:', e)
+        console.error('加载设置失败:', e)
       }
     }
-    
-    try {
-      const response = await wordApi.getSetting('appearance')
-      if (response && response.value) {
-        const serverSettings = JSON.parse(response.value)
-        settings.value = { ...defaultSettings, ...serverSettings }
-        localStorage.setItem(localStorageKey, JSON.stringify(settings.value))
-        console.log('从服务器加载设置:', settings.value)
-      }
-    } catch (error) {
-      console.log('从服务器加载设置失败，使用本地设置:', error)
-    }
-    
     applySettings()
-    isInitialized = true
   }
 
-  const saveSettings = async () => {
-    if (!isInitialized) return
-    
+  const saveSettings = () => {
     console.log('保存设置:', settings.value)
-    
-    localStorage.setItem(localStorageKey, JSON.stringify(settings.value))
-    
-    try {
-      await wordApi.saveSetting('appearance', JSON.stringify(settings.value))
-      console.log('设置已保存到服务器')
-    } catch (error) {
-      console.error('保存设置到服务器失败:', error)
-    }
-    
+    localStorage.setItem('appearanceSettings', JSON.stringify(settings.value))
     applySettings()
   }
 
@@ -147,19 +119,21 @@ export function useAppearance() {
     })
   }
 
-  const resetSettings = async () => {
+  const resetSettings = () => {
     settings.value = { ...defaultSettings }
-    await saveSettings()
+    saveSettings()
   }
 
-  const uploadImage = async (file: File): Promise<string> => {
-    try {
-      const data = await wordApi.uploadImage(file)
-      return data.url
-    } catch (error) {
-      console.error('上传图片失败:', error)
-      throw error
-    }
+  const uploadImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        const result = e.target?.result as string
+        resolve(result)
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
   }
 
   const setBackgroundImage = (imageUrl: string) => {
@@ -168,25 +142,12 @@ export function useAppearance() {
     saveSettings()
   }
 
-  let saveTimeout: number | null = null
-  
-  const debouncedSave = () => {
-    if (saveTimeout) {
-      clearTimeout(saveTimeout)
-    }
-    saveTimeout = window.setTimeout(() => {
-      saveSettings()
-    }, 500)
-  }
-
   onMounted(() => {
     loadSettings()
   })
 
   watch(settings, () => {
-    if (isInitialized) {
-      debouncedSave()
-    }
+    saveSettings()
   }, { deep: true })
 
   return {

@@ -21,8 +21,6 @@ export const setLoggingOut = (value: boolean) => {
   isLoggingOut = value
 }
 
-export const getIsLoggingOut = () => isLoggingOut
-
 export const setRefreshingToken = (value: boolean) => {
   isRefreshingToken = value
 }
@@ -32,16 +30,14 @@ api.interceptors.response.use(
   (error) => {
     const isLoginRequest = error.config?.url?.includes('/auth/login')
     const isLogoutRequest = error.config?.url?.includes('/auth/logout')
-    const isSettingsRequest = error.config?.url?.includes('/settings/')
-    
-    if (isLoggingOut) {
-      console.log('[DEBUG-API] Error during logout - ignoring completely')
-      return Promise.reject(error)
-    }
     
     if (error.response?.status === 401) {
-      // 如果是获取设置的请求，不要立即登出，只是让请求失败
-      if (!isLoginRequest && !isLogoutRequest && !isRefreshingToken && !isSettingsRequest) {
+      if (isLoggingOut) {
+        console.log('[DEBUG-API] 401 during logout - ignoring')
+        return Promise.reject(error)
+      }
+      
+      if (!isLoginRequest && !isLogoutRequest && !isRefreshingToken) {
         const currentPath = router.currentRoute.value.path
         if (currentPath !== '/login') {
           localStorage.removeItem('token')
@@ -108,8 +104,8 @@ export const wordApi = {
     return api.delete(`/relations/word/${wordId}`)
   },
   
-  classifyAll: (keepManual: boolean = false, resetOnly: boolean = false) => {
-    return api.post('/classify/all', { keepManual, resetOnly });
+  classifyAll: (keepManual: boolean = false) => {
+    return api.post('/classify/all', { keepManual })
   },
   
   resetWordClassification: (wordId: number) => {
@@ -174,12 +170,6 @@ export const wordApi = {
 
   addWord: (data: { english: string, part_of_speech: string, chinese: string }) => {
     return api.post('/words', data)
-  },
-  
-  uploadImage: (file: File) => {
-    const formData = new FormData()
-    formData.append('image', file)
-    return api.post('/upload-image', formData).then(res => res.data)
   }
 }
 

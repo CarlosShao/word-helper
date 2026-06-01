@@ -56,7 +56,10 @@ const corsOptions = {
       'http://localhost:5173',
       /\.onrender\.com$/,
       /\.vercel\.app$/,
-      /\.netlify\.app$/
+      /\.netlify\.app$/,
+      /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}:\d+$/,
+      /^http:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/,
+      /^http:\/\/172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}:\d+$/
     ];
     
     if (!origin || allowedOrigins.some((pattern: any) => 

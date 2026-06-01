@@ -354,7 +354,7 @@ body {
   
   .username {
     font-size: 12px;
-    display: none;
+    display: flex;
   }
   
   .logout-btn {

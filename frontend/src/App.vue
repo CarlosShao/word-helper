@@ -318,37 +318,62 @@ body {
     justify-content: space-between;
     padding: 8px 12px;
     height: auto;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    gap: 12px;
+  }
+  
+  .header-content::after {
+    content: '';
+    flex-shrink: 0;
+    width: 0;
   }
   
   .el-menu {
-    flex: 0 1 auto;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+  }
+  
+  .el-menu--horizontal {
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+  }
+  
+  .el-menu--horizontal::-webkit-scrollbar {
+    display: none;
   }
   
   .user-info {
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-shrink: 0;
+    order: 2;
   }
   
   .username {
     font-size: 12px;
+    display: none;
   }
   
   .logout-btn {
-    padding: 4px 10px;
+    padding: 4px 8px;
     font-size: 11px;
+    min-width: auto;
   }
   
   .app-container .el-main {
     padding: 15px 10px;
+    min-height: calc(100vh - 60px);
   }
   
   .el-menu-item {
-    padding: 0 10px;
-    font-size: 13px;
+    padding: 0 8px;
+    font-size: 12px;
     height: 36px;
     line-height: 36px;
+    flex-shrink: 0;
   }
   
   .app-container .el-card__header {

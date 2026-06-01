@@ -585,7 +585,86 @@ onMounted(() => {
   border-radius: 0 0 12px 0;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
+  .settings-layout {
+    flex-direction: column;
+    height: auto;
+    min-height: 100%;
+  }
+  
+  .settings-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e4e7ed;
+    padding: 16px;
+  }
+  
+  .sidebar-title {
+    margin: 0 0 12px 16px;
+    font-size: 18px;
+  }
+  
+  .settings-nav {
+    padding: 0;
+  }
+  
+  .settings-menu {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .settings-menu .el-menu-item {
+    flex: 0 1 auto;
+    height: 40px;
+    line-height: 40px;
+    padding: 0 16px;
+    margin-bottom: 0;
+    font-size: 13px;
+  }
+  
+  .settings-content {
+    padding: 16px;
+    overflow-y: visible;
+  }
+  
+  .section-title {
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+  
+  .settings-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 0;
+  }
+  
+  .item-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .image-input-wrapper {
+    width: 100%;
+  }
+  
+  .image-preview {
+    width: 100%;
+    max-width: 300px;
+  }
+  
+  .pos-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .pos-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  
   .pos-table {
     min-width: 600px;
   }
@@ -594,6 +673,25 @@ onMounted(() => {
   .pos-table :deep(.el-table__body td) {
     font-size: 13px;
     padding: 10px 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-sidebar {
+    padding: 12px;
+  }
+  
+  .settings-menu .el-menu-item {
+    padding: 0 12px;
+    font-size: 12px;
+  }
+  
+  .settings-content {
+    padding: 12px;
+  }
+  
+  .settings-item {
+    padding: 12px 0;
   }
 }
 </style>

@@ -1262,6 +1262,10 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
+  .home {
+    padding: 0 10px;
+  }
+  
   .card-header {
     flex-direction: column;
     align-items: flex-start;
